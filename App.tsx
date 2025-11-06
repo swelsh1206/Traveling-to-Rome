@@ -25,43 +25,49 @@ function App() {
   };
 
   const handleCharacterCreate = async (name: string, profession: Profession) => {
-    setIsCreating(true);
-    const stats = PROFESSION_STATS[profession];
-    const newPlayer: Player = { name, profession, stats };
-
-    // Create a family
-    const lastName = getRandomItem(FRENCH_LAST_NAMES);
-    const spouse: PartyMember = { name: getRandomItem(FRENCH_FEMALE_NAMES) + ' ' + lastName, health: INITIAL_HEALTH, conditions: [] };
-    const child: PartyMember = { name: getRandomItem(FRENCH_MALE_NAMES) + ' ' + lastName, health: INITIAL_HEALTH, conditions: [] };
-    const party = [spouse, child];
-
-    const newGameState: GameState = {
-      day: 1,
-      distanceTraveled: 0,
-      distanceToRome: TOTAL_DISTANCE_TO_ROME,
-      health: INITIAL_HEALTH,
-      food: stats.food,
-      money: stats.money,
-      oxen: stats.oxen,
-      inventory: { ...stats.inventory },
-      conditions: [],
-      phase: 'traveling',
-      party: party,
-      currentLocation: null,
-    };
-
-    setPlayer(newPlayer);
-    setGameState(newGameState);
-
     try {
-      const imageUrl = await generateCharacterImage(newPlayer);
-      setCharacterImageUrl(imageUrl);
+      setIsCreating(true);
+      const stats = PROFESSION_STATS[profession];
+      const newPlayer: Player = { name, profession, stats };
+
+      // Create a family
+      const lastName = getRandomItem(FRENCH_LAST_NAMES);
+      const spouse: PartyMember = { name: getRandomItem(FRENCH_FEMALE_NAMES) + ' ' + lastName, health: INITIAL_HEALTH, conditions: [] };
+      const child: PartyMember = { name: getRandomItem(FRENCH_MALE_NAMES) + ' ' + lastName, health: INITIAL_HEALTH, conditions: [] };
+      const party = [spouse, child];
+
+      const newGameState: GameState = {
+        day: 1,
+        distanceTraveled: 0,
+        distanceToRome: TOTAL_DISTANCE_TO_ROME,
+        health: INITIAL_HEALTH,
+        food: stats.food,
+        money: stats.money,
+        oxen: stats.oxen,
+        inventory: { ...stats.inventory },
+        conditions: [],
+        phase: 'traveling',
+        party: party,
+        currentLocation: null,
+      };
+
+      setPlayer(newPlayer);
+      setGameState(newGameState);
+
+      try {
+        const imageUrl = await generateCharacterImage(newPlayer);
+        setCharacterImageUrl(imageUrl);
+      } catch (error) {
+        console.error("Failed to generate character image:", error);
+        // Image will be handled by the sprite system
+      }
+
+      setScreen('game');
     } catch (error) {
-      console.error("Failed to generate character image:", error);
-      setCharacterImageUrl('placeholder.png'); // Fallback image
+      console.error("Error creating character:", error);
+      alert("There was an error creating your character. Please try again.");
     } finally {
       setIsCreating(false);
-      setScreen('game');
     }
   };
   

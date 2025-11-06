@@ -2,7 +2,18 @@ import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { GameState, Inventory, PartyMember, Player, PlayerAction, Profession } from "../types";
 import { getRandomSprite } from "../data/characterSprites";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize AI with error handling
+let ai: GoogleGenAI | null = null;
+try {
+    const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+    if (apiKey) {
+        ai = new GoogleGenAI({ apiKey });
+    } else {
+        console.warn("No API key found. AI features will be limited.");
+    }
+} catch (error) {
+    console.error("Failed to initialize GoogleGenAI:", error);
+}
 
 const outcomeSchema = {
     type: Type.OBJECT,
@@ -109,6 +120,12 @@ const getActionPrompt = (action: PlayerAction, profession: Profession): string =
 }
 
 export const generateCharacterImage = async (player: Player): Promise<string> => {
+    // Use fallback sprites if AI is not available
+    if (!ai) {
+        console.log("AI not available, using pixel art sprite for", player.profession);
+        return getRandomSprite(player.profession);
+    }
+
     try {
         const prompt = `16-bit pixel art portrait of a ${player.profession} from 17th century France. Fantasy RPG character style, similar to classic SNES games like Final Fantasy. The character should look weary from travel but determined. Centered bust portrait with a plain background. Retro gaming aesthetic.`;
 
@@ -138,7 +155,44 @@ export const generateCharacterImage = async (player: Player): Promise<string> =>
 };
 
 export const generateActionOutcome = async (player: Player, gameState: GameState, action: PlayerAction) => {
-     try {
+    // Fallback outcome function
+    const getFallbackOutcome = () => {
+        if (action === 'Travel') {
+            return {
+                description: "The road ahead is quiet. You make steady progress.",
+                health_change: -2,
+                food_change: -5,
+                money_change: 0,
+                oxen_change: 0,
+                distance_change: 20,
+                merchant_encountered: false,
+                inventory_changes: [],
+                conditions_add: [],
+                conditions_remove: [],
+                party_changes: [],
+            };
+        }
+        return {
+            description: "You complete your task without incident.",
+            health_change: 0,
+            food_change: 0,
+            money_change: 0,
+            oxen_change: 0,
+            distance_change: 0,
+            merchant_encountered: false,
+            inventory_changes: [],
+            conditions_add: [],
+            conditions_remove: [],
+            party_changes: [],
+        };
+    };
+
+    if (!ai) {
+        console.warn("AI not available, using fallback outcome");
+        return getFallbackOutcome();
+    }
+
+    try {
         const systemInstruction = getSystemInstruction(player, gameState);
         const prompt = getActionPrompt(action, player.profession);
 
@@ -151,26 +205,13 @@ export const generateActionOutcome = async (player: Player, gameState: GameState
                 responseSchema: outcomeSchema,
             },
         });
-        
+
         const jsonStr = response.text;
         const data = JSON.parse(jsonStr);
         return data.outcome;
 
     } catch (error) {
         console.error("Error generating event outcome:", error);
-        // Fallback outcome
-        return {
-            description: "The road ahead is quiet. You make steady progress.",
-            health_change: -2,
-            food_change: -5,
-            money_change: 0,
-            oxen_change: 0,
-            distance_change: 15,
-            merchant_encountered: false,
-            inventory_changes: [],
-            conditions_add: [],
-            conditions_remove: [],
-            party_changes: [],
-        };
+        return getFallbackOutcome();
     }
 };
