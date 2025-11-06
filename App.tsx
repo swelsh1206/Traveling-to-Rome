@@ -5,7 +5,7 @@ import CharacterCreationScreen from './components/CharacterCreationScreen';
 import GameUI from './components/GameUI';
 import EndScreen from './components/EndScreen';
 import { Player, GameState, Profession, PartyMember } from './types';
-import { PROFESSION_STATS, TOTAL_DISTANCE_TO_ROME, INITIAL_HEALTH, FRENCH_MALE_NAMES, FRENCH_FEMALE_NAMES, FRENCH_LAST_NAMES } from './constants';
+import { PROFESSION_STATS, PROFESSION_EQUIPMENT, PROFESSION_SKILLS, TOTAL_DISTANCE_TO_ROME, INITIAL_HEALTH, INITIAL_STAMINA, FRENCH_MALE_NAMES, FRENCH_FEMALE_NAMES, FRENCH_LAST_NAMES } from './constants';
 import { generateCharacterImage } from './services/geminiService';
 
 type GameScreen = 'start' | 'create' | 'game' | 'end';
@@ -30,10 +30,32 @@ function App() {
       const stats = PROFESSION_STATS[profession];
       const newPlayer: Player = { name, profession, stats };
 
-      // Create a family
+      // Create a family with personality traits
+      const traits = ['brave', 'cautious', 'optimistic', 'pessimistic', 'faithful', 'pragmatic', 'protective', 'independent'];
       const lastName = getRandomItem(FRENCH_LAST_NAMES);
-      const spouse: PartyMember = { name: getRandomItem(FRENCH_FEMALE_NAMES) + ' ' + lastName, health: INITIAL_HEALTH, conditions: [] };
-      const child: PartyMember = { name: getRandomItem(FRENCH_MALE_NAMES) + ' ' + lastName, health: INITIAL_HEALTH, conditions: [] };
+
+      const spouse: PartyMember = {
+        name: getRandomItem(FRENCH_FEMALE_NAMES) + ' ' + lastName,
+        role: 'spouse',
+        health: INITIAL_HEALTH,
+        conditions: [],
+        relationship: 75 + Math.floor(Math.random() * 20), // 75-95 (family should start with good relationship)
+        mood: 'hopeful',
+        trust: 75 + Math.floor(Math.random() * 20), // 75-95
+        personalityTrait: getRandomItem(traits)
+      };
+
+      const child: PartyMember = {
+        name: getRandomItem(FRENCH_MALE_NAMES) + ' ' + lastName,
+        role: 'child',
+        health: INITIAL_HEALTH,
+        conditions: [],
+        relationship: 70 + Math.floor(Math.random() * 22), // 70-92 (children might be slightly more variable)
+        mood: 'content',
+        trust: 70 + Math.floor(Math.random() * 20), // 70-90
+        personalityTrait: getRandomItem(traits)
+      };
+
       const party = [spouse, child];
 
       const newGameState: GameState = {
@@ -44,11 +66,16 @@ function App() {
         food: stats.food,
         money: stats.money,
         oxen: stats.oxen,
+        stamina: INITIAL_STAMINA,
         inventory: { ...stats.inventory },
         conditions: [],
         phase: 'traveling',
         party: party,
         currentLocation: null,
+        weather: 'Clear',
+        season: 'Spring', // Journey starts in Spring 1640
+        equipment: { ...PROFESSION_EQUIPMENT[profession] },
+        skills: { ...PROFESSION_SKILLS[profession] },
       };
 
       setPlayer(newPlayer);

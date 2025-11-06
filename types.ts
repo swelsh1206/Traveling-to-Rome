@@ -5,7 +5,10 @@ export enum Profession {
   Blacksmith = 'Blacksmith',
   Scholar = 'Scholar',
   Apothecary = 'Apothecary',
+  Royal = 'Royal',
 }
+
+export type TransportationType = 'On Foot' | 'Horse' | 'Wagon' | 'Carriage' | 'Royal Procession';
 
 export type Inventory = Record<string, number>;
 
@@ -19,11 +22,32 @@ export interface CharacterStats {
 
 export type Condition = 'Injured' | 'Sick' | 'Exhausted' | 'Wagon Damaged';
 export type GamePhase = 'traveling' | 'camp' | 'in_city' | 'merchant_encounter';
+export type Weather = 'Clear' | 'Rain' | 'Storm' | 'Snow' | 'Fog';
+export type Season = 'Spring' | 'Summer' | 'Autumn' | 'Winter';
+
+export interface Equipment {
+    weapon?: string;
+    armor?: string;
+    tool?: string;
+}
+
+export interface Skills {
+    combat: number; // 0-100
+    survival: number; // 0-100
+    persuasion: number; // 0-100
+    medicine: number; // 0-100
+}
 
 export interface PartyMember {
     name: string;
+    role: 'spouse' | 'child' | 'companion';
     health: number;
     conditions: Condition[];
+    relationship: number; // 0-100
+    mood: 'content' | 'worried' | 'afraid' | 'angry' | 'hopeful' | 'devoted';
+    trust: number; // 0-100
+    lastConversation?: number;
+    personalityTrait: string;
 }
 
 export interface GameState {
@@ -34,11 +58,16 @@ export interface GameState {
   food: number;
   money: number;
   oxen: number;
+  stamina: number;
   inventory: Inventory;
   conditions: Condition[];
   phase: GamePhase;
   party: PartyMember[];
   currentLocation: string | null;
+  weather: Weather;
+  season: Season;
+  equipment: Equipment;
+  skills: Skills;
 }
 
 export interface Player {

@@ -44,8 +44,8 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ player, imageUrl, gameS
   const borderColor = isCity ? 'border-purple-500' : isCamp ? 'border-sky-500' : 'border-amber-500';
 
   return (
-    <div className={`bg-stone-800/80 p-4 border-2 ${borderColor} shadow-lg text-center h-full flex flex-col transition-colors duration-500 rounded-xl`}>
-      <h2 className="text-2xl text-amber-300 tracking-wider">{player.name}</h2>
+    <div className={`bg-gradient-to-b from-stone-800/80 to-stone-900/80 p-4 border-2 ${borderColor} shadow-2xl text-center h-full flex flex-col transition-all duration-500 rounded-xl hover-lift`}>
+      <h2 className="text-2xl text-amber-300 tracking-wider text-shadow-glow">{player.name}</h2>
       <p className="text-md text-amber-100 mb-3">{player.profession}</p>
       
       <div className={`w-full aspect-square mx-auto border-4 ${borderColor} overflow-hidden mb-4 transition-colors duration-500 rounded-2xl shadow-xl`}>
@@ -77,7 +77,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ player, imageUrl, gameS
 
         <div className="space-y-2">
             <InfoButton onClick={() => onOpenWindow('Description')}>Description</InfoButton>
-            <InfoButton onClick={() => onOpenWindow('Party')}>Party</InfoButton>
+            <InfoButton onClick={() => onOpenWindow('Party')}>Family</InfoButton>
             <InfoButton onClick={() => onOpenWindow('Inventory')}>Inventory</InfoButton>
             <InfoButton onClick={() => onOpenWindow('History')}>History</InfoButton>
         </div>

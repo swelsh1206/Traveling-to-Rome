@@ -3,9 +3,14 @@ import { Profession, CharacterStats, HuntableAnimal } from './types';
 export const TOTAL_DISTANCE_TO_ROME = 1400; // km, approximate from central France
 
 export const ROUTE_CHECKPOINTS = [
+    { name: 'Dijon', distance: 300 },
     { name: 'Lyon', distance: 450 },
+    { name: 'Chambéry', distance: 600 },
     { name: 'Turin', distance: 750 },
+    { name: 'Genoa', distance: 900 },
+    { name: 'Pisa', distance: 1050 },
     { name: 'Florence', distance: 1150 },
+    { name: 'Siena', distance: 1275 },
 ];
 
 export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
@@ -14,50 +19,116 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
     food: 100,
     oxen: 2,
     description: "Starts with more money and gets a 15% bonus on sales and 15% discount on purchases at markets.",
-    inventory: { 'Fine Silks': 2, 'Spices': 3, 'Bandages': 2 },
+    inventory: {
+      'Fine Silks': 2,
+      'Spices': 3,
+      'Bandages': 2,
+      'Wine': 2,
+      'Compass': 1,
+      'Dried Fruit': 5,
+    },
   },
   [Profession.Priest]: {
     money: 250,
     food: 120,
     oxen: 1,
-    description: "Respected by others, may receive help more easily.",
-    inventory: { 'Holy Symbol': 1, 'Bandages': 5 },
+    description: "Respected by others, may receive help more easily. Can craft Holy Water.",
+    inventory: {
+      'Holy Symbol': 1,
+      'Bandages': 5,
+      'Prayer Book': 1,
+      'Candles': 3,
+      'Holy Water': 2,
+    },
   },
   [Profession.Soldier]: {
     money: 300,
     food: 80,
     oxen: 2,
-    description: "Hardy and resourceful, better at handling threats. Receives a bonus to hunting success.",
-    inventory: { 'Sharpening Stone': 1, 'Jerky': 10, 'Bandages': 3 },
+    description: "Hardy and resourceful, better at handling threats. Receives +10% bonus to hunting success.",
+    inventory: {
+      'Sharpening Stone': 1,
+      'Jerky': 10,
+      'Bandages': 3,
+      'Rope': 2,
+      'Iron Rations': 5,
+      'Whetstone': 1,
+    },
   },
   [Profession.Blacksmith]: {
       money: 350,
       food: 100,
       oxen: 2,
-      description: "Can repair the wagon using scrap metal while camped.",
-      inventory: { 'Scrap Metal': 5, 'Hammer': 1, 'Bandages': 2 },
+      description: "Can repair the wagon using scrap metal while camped. Can craft repair kits.",
+      inventory: {
+        'Scrap Metal': 5,
+        'Hammer': 1,
+        'Bandages': 2,
+        'Iron Nails': 3,
+        'Tinderbox': 1,
+        'Rope': 1,
+      },
   },
   [Profession.Scholar]: {
       money: 200,
       food: 100,
       oxen: 1,
-      description: "Knowledgeable, can read ancient texts and maps.",
-      inventory: { 'Scholarly Tome': 1, 'Ink & Quill': 3, 'Bandages': 2 },
+      description: "Knowledgeable, can read ancient texts and maps. Gains insight from books.",
+      inventory: {
+        'Scholarly Tome': 1,
+        'Ink & Quill': 3,
+        'Bandages': 2,
+        'Map': 1,
+        'Candles': 2,
+        'Lantern Oil': 2,
+      },
   },
   [Profession.Apothecary]: {
       money: 275,
       food: 110,
       oxen: 1,
-      description: "Can forage for medicinal herbs while camped.",
-      inventory: { 'Medicinal Herbs': 5, 'Mortar and Pestle': 1, 'Bandages': 3 },
+      description: "Can forage for medicinal herbs while camped. Expert in healing remedies.",
+      inventory: {
+        'Medicinal Herbs': 5,
+        'Mortar and Pestle': 1,
+        'Bandages': 3,
+        'Honey': 3,
+        'Herbal Tea': 2,
+        'Dried Fruit': 3,
+      },
+  },
+  [Profession.Royal]: {
+      money: 2000,
+      food: 200,
+      oxen: 4,
+      description: "Of noble blood and exceptional wealth. Travels with an entourage and receives preferential treatment. Extremely rare.",
+      inventory: {
+        'Fine Silks': 5,
+        'Wine': 10,
+        'Healing Poultice': 5,
+        'Holy Water': 3,
+        'Compass': 1,
+        'Map': 1,
+        'Cheese Wheel': 10,
+        'Prayer Book': 1,
+        'Luxury Bundle': 2,
+        'Iron Rations': 20,
+        'Bandages': 10,
+      },
   }
 };
 
 export const HUNTABLE_ANIMALS: HuntableAnimal[] = [
     { name: 'Rabbit', successChance: 85, foodYield: [5, 10], injuryRisk: 0, description: "A small, quick target. High chance of success for a small meal." },
+    { name: 'Pheasant', successChance: 70, foodYield: [12, 18], injuryRisk: 0, description: "A beautiful game bird. Good eating and moderate difficulty." },
+    { name: 'Fox', successChance: 55, foodYield: [10, 15], injuryRisk: 5, description: "Cunning and fast. Not much meat, but a challenge to catch." },
     { name: 'Deer', successChance: 60, foodYield: [20, 35], injuryRisk: 10, description: "A wary creature. A good prize, but it might escape or lash out if cornered." },
     { name: 'Wild Boar', successChance: 40, foodYield: [40, 60], injuryRisk: 30, description: "A dangerous and aggressive beast. Very rewarding, but failure is often painful." },
+    { name: 'Wolf', successChance: 30, foodYield: [15, 25], injuryRisk: 45, description: "Extremely dangerous. Only the desperate or brave would hunt one." },
     { name: 'Flock of Birds', successChance: 75, foodYield: [8, 15], injuryRisk: 0, description: "Requires a quick eye. A decent meal with little risk." },
+    { name: 'Wild Goat', successChance: 65, foodYield: [18, 28], injuryRisk: 8, description: "Lives in rocky terrain. Agile and can be dangerous when cornered." },
+    { name: 'Hare', successChance: 80, foodYield: [6, 12], injuryRisk: 0, description: "Larger than a rabbit. Very quick but offers a decent meal." },
+    { name: 'Duck', successChance: 72, foodYield: [10, 16], injuryRisk: 0, description: "Found near water. Easy to hunt and good for roasting." },
 ];
 
 export const ITEM_PRICES: Record<string, { buy: number, sell: number }> = {
@@ -70,25 +141,144 @@ export const ITEM_PRICES: Record<string, { buy: number, sell: number }> = {
     'Spices': { buy: 0, sell: 30 },
     'Scrap Metal': { buy: 15, sell: 8 },
     'Wagon Repair Kit': { buy: 75, sell: 40 },
+    'Wine': { buy: 20, sell: 15 },
+    'Holy Water': { buy: 30, sell: 20 },
+    'Rope': { buy: 8, sell: 4 },
+    'Lantern Oil': { buy: 12, sell: 6 },
+    'Warm Clothing': { buy: 35, sell: 18 },
+    'Dried Fruit': { buy: 7, sell: 3 },
+    'Cheese Wheel': { buy: 15, sell: 8 },
+    'Salted Fish': { buy: 10, sell: 5 },
+    'Leather Boots': { buy: 40, sell: 20 },
+    'Healing Poultice': { buy: 50, sell: 25 },
+    'Iron Rations': { buy: 18, sell: 9 },
+    'Cooking Pot': { buy: 25, sell: 12 },
+    'Bedroll': { buy: 30, sell: 15 },
+    'Tinderbox': { buy: 10, sell: 5 },
+    'Whetstone': { buy: 15, sell: 8 },
+    'Candles': { buy: 5, sell: 2 },
+    'Prayer Book': { buy: 20, sell: 10 },
+    'Compass': { buy: 60, sell: 40 },
+    'Map': { buy: 35, sell: 20 },
+    'Herbal Tea': { buy: 8, sell: 4 },
+    'Honey': { buy: 12, sell: 6 },
+    'Scholarly Letter': { buy: 0, sell: 15 },
+    'Ancient Knowledge': { buy: 0, sell: 40 },
+    'Luxury Bundle': { buy: 0, sell: 100 },
+    'Field Provisions': { buy: 0, sell: 20 },
+    'Iron Nails': { buy: 12, sell: 6 },
+};
+
+export const ITEM_ICONS: Record<string, string> = {
+    'Bandages': '🩹',
+    'Medicinal Herbs': '🌿',
+    'Healing Poultice': '💊',
+    'Jerky': '🥓',
+    'Dried Fruit': '🍇',
+    'Cheese Wheel': '🧀',
+    'Salted Fish': '🐟',
+    'Wine': '🍷',
+    'Holy Water': '💧',
+    'Herbal Tea': '🍵',
+    'Honey': '🍯',
+    'Wagon Repair Kit': '🔧',
+    'Warm Clothing': '🧥',
+    'Leather Boots': '🥾',
+    'Field Provisions': '🎒',
+    'Iron Rations': '📦',
+    'Fine Silks': '🧵',
+    'Spices': '🌶️',
+    'Scrap Metal': '🔩',
+    'Rope': '🪢',
+    'Lantern Oil': '🪔',
+    'Tinderbox': '🔥',
+    'Whetstone': '🪨',
+    'Candles': '🕯️',
+    'Prayer Book': '📖',
+    'Compass': '🧭',
+    'Map': '🗺️',
+    'Scholarly Letter': '✉️',
+    'Ancient Knowledge': '📜',
+    'Luxury Bundle': '🎁',
+    'Iron Nails': '🔨',
+    'Cooking Pot': '🍲',
+    'Bedroll': '🛏️',
+    'Holy Symbol': '✝️',
+    'Ink & Quill': '🖋️',
+    'Scholarly Tome': '📚',
+    'Mortar and Pestle': '⚗️',
+    'Hammer': '🔨',
+    'Sharpening Stone': '🪨',
 };
 
 export const ITEM_EFFECTS: Record<string, { description: string; removesCondition?: string, health_change?: number }> = {
     'Bandages': {
-        description: "Treats wounds.",
+        description: "Treats wounds and stops bleeding.",
         removesCondition: 'Injured',
     },
     'Medicinal Herbs': {
-        description: "A poultice to fight infection.",
+        description: "Raw herbs to fight infection and sickness.",
         removesCondition: 'Sick',
     },
+    'Healing Poultice': {
+        description: "A powerful remedy that treats both wounds and illness.",
+        removesCondition: 'Sick',
+        health_change: 15,
+    },
     'Jerky': {
-        description: "A small, quick meal.",
+        description: "A small, preserved meal. Restores a bit of vitality.",
         health_change: 2,
+    },
+    'Dried Fruit': {
+        description: "Sweet and nutritious. Boosts morale and health.",
+        health_change: 3,
+    },
+    'Cheese Wheel': {
+        description: "Rich and filling. Restores substantial health.",
+        health_change: 5,
+    },
+    'Salted Fish': {
+        description: "Preserved seafood. Restores moderate health.",
+        health_change: 4,
+    },
+    'Wine': {
+        description: "Fortified wine that warms the spirit and body.",
+        health_change: 3,
+    },
+    'Holy Water': {
+        description: "Blessed water with restorative properties.",
+        removesCondition: 'Exhausted',
+        health_change: 5,
+    },
+    'Herbal Tea': {
+        description: "Soothing tea that reduces exhaustion.",
+        removesCondition: 'Exhausted',
+        health_change: 2,
+    },
+    'Honey': {
+        description: "Natural sweetness with healing properties.",
+        health_change: 4,
     },
     'Wagon Repair Kit': {
         description: "Everything needed to repair a damaged axle or wheel.",
         removesCondition: 'Wagon Damaged',
-    }
+    },
+    'Warm Clothing': {
+        description: "Protects against cold weather conditions.",
+        health_change: 3,
+    },
+    'Leather Boots': {
+        description: "Sturdy footwear that helps with travel fatigue.",
+        health_change: 2,
+    },
+    'Field Provisions': {
+        description: "Soldier's rations. Very filling and restorative.",
+        health_change: 8,
+    },
+    'Iron Rations': {
+        description: "Military-grade preserved food. Very restorative.",
+        health_change: 6,
+    },
 };
 
 export const CRAFTING_RECIPES = [
@@ -96,20 +286,136 @@ export const CRAFTING_RECIPES = [
         profession: Profession.Scholar,
         item: 'Ink & Quill',
         result: 'Scholarly Letter',
-        description: 'You spend some time writing a letter, perhaps to a colleague in a university in the next city.',
+        description: 'You spend time writing a letter to a colleague in the next city.',
+    },
+    {
+        profession: Profession.Scholar,
+        item: 'Scholarly Tome',
+        result: 'Ancient Knowledge',
+        description: 'You decipher an ancient text, gaining insight that may help the journey.',
     },
     {
         profession: Profession.Apothecary,
         item: 'Medicinal Herbs',
         requires: 'Mortar and Pestle',
         result: 'Healing Poultice',
-        description: 'You carefully grind the herbs into a potent healing poultice, which may be more effective than raw herbs.',
+        description: 'You grind the herbs into a potent healing poultice.',
+    },
+    {
+        profession: Profession.Apothecary,
+        item: 'Honey',
+        requires: 'Medicinal Herbs',
+        result: 'Herbal Tea',
+        description: 'You brew a soothing herbal tea with honey.',
+    },
+    {
+        profession: Profession.Blacksmith,
+        item: 'Scrap Metal',
+        requires: 'Hammer',
+        result: 'Wagon Repair Kit',
+        description: 'You forge the scrap metal into useful wagon repair components.',
+    },
+    {
+        profession: Profession.Blacksmith,
+        item: 'Scrap Metal',
+        requires: 'Hammer',
+        result: 'Iron Nails',
+        description: 'You hammer out sturdy iron nails from scrap metal.',
+    },
+    {
+        profession: Profession.Merchant,
+        item: 'Fine Silks',
+        requires: 'Spices',
+        result: 'Luxury Bundle',
+        description: 'You package fine goods together to fetch a better price.',
+    },
+    {
+        profession: Profession.Soldier,
+        item: 'Sharpening Stone',
+        requires: 'Jerky',
+        result: 'Field Provisions',
+        description: 'You prepare efficient travel rations like a soldier on campaign.',
+    },
+    {
+        profession: Profession.Priest,
+        item: 'Holy Symbol',
+        requires: 'Prayer Book',
+        result: 'Holy Water',
+        description: 'You perform a blessing ritual to sanctify water.',
+    },
+    {
+        profession: Profession.Royal,
+        item: 'Wine',
+        requires: 'Fine Silks',
+        result: 'Luxury Bundle',
+        description: 'Your noble connections allow you to create extravagant trade bundles.',
     },
 ];
 
 
 export const INITIAL_HEALTH = 100;
+export const INITIAL_STAMINA = 100;
 
-export const FRENCH_MALE_NAMES = ["Jean", "Pierre", "Louis", "Antoine", "Philippe", "Charles", "Henri", "Michel"];
-export const FRENCH_FEMALE_NAMES = ["Marie", "Jeanne", "Catherine", "Marguerite", "Anne", "Françoise", "Isabelle"];
-export const FRENCH_LAST_NAMES = ["Martin", "Bernard", "Dubois", "Thomas", "Robert", "Richard", "Petit", "Durand"];
+// Starting equipment by profession
+export const PROFESSION_EQUIPMENT: Record<Profession, { weapon?: string; armor?: string; tool?: string }> = {
+  [Profession.Merchant]: {
+    tool: 'Compass',
+  },
+  [Profession.Priest]: {
+    tool: 'Prayer Book',
+  },
+  [Profession.Soldier]: {
+    weapon: 'Sword',
+    armor: 'Leather Armor',
+  },
+  [Profession.Blacksmith]: {
+    weapon: 'Hammer',
+    tool: 'Smith\'s Tools',
+  },
+  [Profession.Scholar]: {
+    tool: 'Ancient Tome',
+  },
+  [Profession.Apothecary]: {
+    tool: 'Medicine Kit',
+  },
+  [Profession.Royal]: {
+    weapon: 'Rapier',
+    armor: 'Fine Doublet',
+  },
+};
+
+// Starting skills by profession
+export const PROFESSION_SKILLS: Record<Profession, { combat: number; survival: number; persuasion: number; medicine: number }> = {
+  [Profession.Merchant]: { combat: 10, survival: 15, persuasion: 35, medicine: 10 },
+  [Profession.Priest]: { combat: 5, survival: 10, persuasion: 30, medicine: 25 },
+  [Profession.Soldier]: { combat: 40, survival: 25, persuasion: 10, medicine: 15 },
+  [Profession.Blacksmith]: { combat: 25, survival: 20, persuasion: 15, medicine: 10 },
+  [Profession.Scholar]: { combat: 5, survival: 10, persuasion: 25, medicine: 20 },
+  [Profession.Apothecary]: { combat: 10, survival: 20, persuasion: 15, medicine: 40 },
+  [Profession.Royal]: { combat: 20, survival: 10, persuasion: 35, medicine: 15 },
+};
+
+export const FRENCH_MALE_NAMES = [
+    "Jean", "Pierre", "Louis", "Antoine", "Philippe", "Charles", "Henri", "Michel",
+    "François", "Jacques", "Nicolas", "Claude", "Étienne", "Guillaume", "Gaspard",
+    "Matthieu", "Baptiste", "Alexandre", "Sébastien", "Christophe", "Vincent", "Blaise"
+];
+
+export const FRENCH_FEMALE_NAMES = [
+    "Marie", "Jeanne", "Catherine", "Marguerite", "Anne", "Françoise", "Isabelle",
+    "Élisabeth", "Madeleine", "Louise", "Charlotte", "Geneviève", "Claire", "Agnès",
+    "Suzanne", "Hélène", "Thérèse", "Jacqueline"
+];
+
+export const FRENCH_LAST_NAMES = [
+    "Martin", "Bernard", "Dubois", "Thomas", "Robert", "Richard", "Petit", "Durand",
+    "Moreau", "Laurent", "Simon", "Michel", "Lefebvre", "Leroy", "Roux", "David",
+    "Bertrand", "Morel", "Fournier", "Girard", "Bonnet", "Dupont", "Lambert", "Fontaine",
+    "Rousseau", "Vincent", "Muller", "Blanc", "Gauthier", "Garcia"
+];
+
+export const NOBLE_TITLES = ["de", "du", "le", "la"];
+
+export const STARTING_CITIES = [
+    "Paris", "Orléans", "Tours", "Bourges", "Nevers", "Moulins", "Clermont", "Roanne"
+];

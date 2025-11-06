@@ -3,9 +3,9 @@ import { Player, GameState, LogEntry, PlayerAction, WindowType, Inventory, Condi
 import Log from './Log';
 import CharacterPanel from './CharacterPanel';
 import ActionButton from './ActionButton';
-import { generateActionOutcome } from '../services/geminiService';
+import { generateActionOutcome, generateRandomEvent, processEventChoice } from '../services/geminiService';
 import LoadingSpinner from './LoadingSpinner';
-import { TOTAL_DISTANCE_TO_ROME, PROFESSION_STATS, ITEM_EFFECTS, CRAFTING_RECIPES, INITIAL_HEALTH, ITEM_PRICES, ROUTE_CHECKPOINTS, HUNTABLE_ANIMALS } from '../constants';
+import { TOTAL_DISTANCE_TO_ROME, PROFESSION_STATS, ITEM_EFFECTS, CRAFTING_RECIPES, INITIAL_HEALTH, ITEM_PRICES, ROUTE_CHECKPOINTS, HUNTABLE_ANIMALS, ITEM_ICONS } from '../constants';
 import ProgressBar from './ProgressBar';
 import ModalWindow from './ModalWindow';
 import SuppliesBar from './SuppliesBar';
@@ -57,9 +57,60 @@ const updateConditions = (currentConditions: Condition[], toAdd: string[] = [], 
     return newConditions;
 };
 
+// Determine season based on day (approximate 90-day seasons)
+const getSeason = (day: number): 'Spring' | 'Summer' | 'Autumn' | 'Winter' => {
+    const dayOfYear = day % 365;
+    if (dayOfYear < 90) return 'Spring';
+    if (dayOfYear < 180) return 'Summer';
+    if (dayOfYear < 270) return 'Autumn';
+    return 'Winter';
+};
+
+// Generate random weather (affected by season)
+const generateWeather = (season: 'Spring' | 'Summer' | 'Autumn' | 'Winter'): 'Clear' | 'Rain' | 'Storm' | 'Snow' | 'Fog' => {
+    const rand = Math.random();
+    if (season === 'Winter') {
+        if (rand < 0.5) return 'Snow';
+        if (rand < 0.7) return 'Clear';
+        if (rand < 0.85) return 'Fog';
+        return 'Storm';
+    } else if (season === 'Spring') {
+        if (rand < 0.5) return 'Clear';
+        if (rand < 0.75) return 'Rain';
+        if (rand < 0.90) return 'Fog';
+        return 'Storm';
+    } else if (season === 'Summer') {
+        if (rand < 0.7) return 'Clear';
+        if (rand < 0.85) return 'Rain';
+        return 'Storm';
+    } else { // Autumn
+        if (rand < 0.4) return 'Clear';
+        if (rand < 0.65) return 'Rain';
+        if (rand < 0.80) return 'Fog';
+        if (rand < 0.95) return 'Storm';
+        return 'Snow';
+    }
+};
+
+// Weather effects on travel
+const getWeatherTravelEffect = (weather: 'Clear' | 'Rain' | 'Storm' | 'Snow' | 'Fog'): { distanceModifier: number; healthCost: number; description: string } => {
+    switch (weather) {
+        case 'Clear':
+            return { distanceModifier: 1.0, healthCost: 0, description: '' };
+        case 'Rain':
+            return { distanceModifier: 0.85, healthCost: 1, description: 'Rain slows your progress.' };
+        case 'Storm':
+            return { distanceModifier: 0.6, healthCost: 3, description: 'The storm batters you mercilessly!' };
+        case 'Snow':
+            return { distanceModifier: 0.7, healthCost: 2, description: 'Snow makes the roads treacherous.' };
+        case 'Fog':
+            return { distanceModifier: 0.9, healthCost: 0, description: 'Fog obscures the path ahead.' };
+    }
+};
+
 const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImageUrl, onGameEnd, onRestartRun }) => {
   const [gameState, setGameState] = useState<GameState>(initialGameState);
-  const [log, setLog] = useState<LogEntry[]>([{ day: 1, message: "Your journey begins. Choose your first action.", color: 'text-green-400' }]);
+  const [log, setLog] = useState<LogEntry[]>([{ day: 1, message: "Your journey begins. Choose your first action.", color: 'text-white' }]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGameOver, setIsGameOver] = useState(false);
   const [activeWindow, setActiveWindow] = useState<WindowType | null>(null);
@@ -67,9 +118,13 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
   const [nextCheckpointIndex, setNextCheckpointIndex] = useState(0);
   const [huntOptions, setHuntOptions] = useState<HuntableAnimal[]>([]);
   const [showMenu, setShowMenu] = useState(false);
+  const [randomEvent, setRandomEvent] = useState<{scenario: string} | null>(null);
+  const [eventChoice, setEventChoice] = useState('');
+  const [isProcessingEvent, setIsProcessingEvent] = useState(false);
+  const [eventOutcome, setEventOutcome] = useState<any>(null);
 
-  const addLogEntry = useCallback((message: string, color: string = 'text-gray-300') => {
-    setLog(prevLog => [...prevLog, { day: gameState.day, message, color }]);
+  const addLogEntry = useCallback((message: string, color: string = 'text-white', dayOverride?: number) => {
+    setLog(prevLog => [...prevLog, { day: dayOverride ?? gameState.day, message, color }]);
   }, [gameState.day]);
 
   const handleOpenInventoryForTarget = (member: PartyMember) => {
@@ -133,8 +188,8 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                 }
             }
         }
-        
-        addLogEntry(message, 'text-green-400');
+
+        addLogEntry(message, 'text-white');
         return { ...prev, inventory: newInventory, conditions: newConditions, health: newHealth, party: newParty };
     });
     
@@ -166,7 +221,17 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
         const newHealth = Math.max(0, Math.min(100, member.health + (change.health_change || 0)));
         const newConditions = updateConditions(member.conditions, change.conditions_add, change.conditions_remove);
-        return { ...member, health: newHealth, conditions: newConditions };
+        const newRelationship = Math.max(0, Math.min(100, member.relationship + ((change as any).relationship_change || 0)));
+        const newTrust = member.trust + (((change as any).relationship_change || 0) > 0 ? 1 : ((change as any).relationship_change || 0) < -5 ? -2 : 0);
+        const newMood = (change as any).mood || member.mood;
+        return {
+          ...member,
+          health: newHealth,
+          conditions: newConditions,
+          relationship: newRelationship,
+          trust: Math.max(0, Math.min(100, newTrust)),
+          mood: newMood
+        };
     });
     return newParty;
   };
@@ -176,11 +241,11 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
           if (type === 'buy') {
               const cost = price * quantity;
               if (prev.money < cost) {
-                  addLogEntry("You don't have enough money for that.", 'text-yellow-400');
+                  addLogEntry("You don't have enough money for that.", 'text-white');
                   return prev;
               }
               const itemChange = item === 'Food' || item === 'Oxen' ? {} : { inventory: updateInventory(prev.inventory, [{ item, change: quantity }]) };
-              addLogEntry(`You bought ${quantity} ${item} for ${cost} money.`, 'text-green-400');
+              addLogEntry(`You bought ${quantity} ${item} for ${cost} money.`, 'text-white');
               return {
                   ...prev,
                   money: prev.money - cost,
@@ -191,12 +256,12 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
           } else { // sell
               const currentAmount = item === 'Food' ? prev.food : item === 'Oxen' ? prev.oxen : (prev.inventory[item] || 0);
               if (currentAmount < quantity) {
-                   addLogEntry(`You don't have that many ${item} to sell.`, 'text-yellow-400');
+                   addLogEntry(`You don't have that many ${item} to sell.`, 'text-white');
                    return prev;
               }
               const earnings = price * quantity;
               const itemChange = item === 'Food' || item === 'Oxen' ? {} : { inventory: updateInventory(prev.inventory, [{ item, change: -quantity }]) };
-              addLogEntry(`You sold ${quantity} ${item} for ${earnings} money.`, 'text-green-400');
+              addLogEntry(`You sold ${quantity} ${item} for ${earnings} money.`, 'text-white');
               return {
                   ...prev,
                   money: prev.money + earnings,
@@ -216,23 +281,24 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
     }
 
     const roll = Math.random() * 100;
+    const staminaCost = 20;
     setGameState(prev => {
         if (roll < successChance) {
             // Success
             const foodGained = Math.floor(Math.random() * (animal.foodYield[1] - animal.foodYield[0] + 1)) + animal.foodYield[0];
-            addLogEntry(`Success! You hunted a ${animal.name} and gathered ${foodGained} food.`, 'text-green-400');
-            return { ...prev, day: prev.day + 1, food: prev.food + foodGained };
+            addLogEntry(`Success! You hunted a ${animal.name} and gathered ${foodGained} food. (-${staminaCost} stamina)`, 'text-white');
+            return { ...prev, stamina: Math.max(0, prev.stamina - staminaCost), food: prev.food + foodGained };
         } else {
             // Failure
             let newConditions = [...prev.conditions];
             const injuryRoll = Math.random() * 100;
-            let message = `The ${animal.name} escaped. You return with nothing.`;
+            let message = `The ${animal.name} escaped. You return with nothing. (-${staminaCost} stamina)`;
             if (injuryRoll < animal.injuryRisk) {
                 newConditions = updateConditions(newConditions, ['Injured']);
-                message = `The ${animal.name} fought back and escaped. You are now Injured.`;
+                message = `The ${animal.name} fought back and escaped. You are now Injured. (-${staminaCost} stamina)`;
             }
-            addLogEntry(message, 'text-red-400');
-            return { ...prev, day: prev.day + 1, conditions: newConditions };
+            addLogEntry(message, 'text-white');
+            return { ...prev, stamina: Math.max(0, prev.stamina - staminaCost), conditions: newConditions };
         }
     });
   };
@@ -249,7 +315,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
     if (action === 'Break Camp' || action === 'Ignore Merchant') {
         setGameState(prev => ({...prev, phase: 'traveling'}));
-        addLogEntry('You continue on your journey.', 'text-green-400');
+        addLogEntry('You continue on your journey.', 'text-white');
         return;
     }
      if (action === 'Use Item') {
@@ -258,7 +324,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         return;
     }
      if (action === 'Leave City') {
-        addLogEntry(`You leave ${gameState.currentLocation}.`, 'text-green-400');
+        addLogEntry(`You leave ${gameState.currentLocation}.`, 'text-white');
         setGameState(prev => ({...prev, phase: 'traveling', currentLocation: null}));
         return;
      }
@@ -267,12 +333,12 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         return;
      }
     if (action === 'Rest') {
-        addLogEntry('You and your family take the day to rest and recuperate.', 'text-green-400');
+        addLogEntry('You and your family rest and recuperate, restoring your stamina.', 'text-white');
         setGameState(prev => {
             const restedParty = prev.party.map(p => ({...p, health: Math.min(100, p.health + 10), conditions: p.conditions.filter(c => c !== 'Exhausted') }));
             return {
                 ...prev,
-                day: prev.day + 1,
+                stamina: Math.min(100, prev.stamina + 50),
                 health: Math.min(100, prev.health + 10),
                 conditions: prev.conditions.filter(c => c !== 'Exhausted'),
                 party: restedParty,
@@ -287,7 +353,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
             (!r.requires || (gameState.inventory[r.requires] || 0) > 0)
         );
         if (availableRecipe) {
-            addLogEntry(availableRecipe.description, 'text-cyan-400');
+            addLogEntry(availableRecipe.description, 'text-white');
             setGameState(prev => ({
                 ...prev,
                 inventory: updateInventory(prev.inventory, [
@@ -296,17 +362,17 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                 ])
             }))
         } else {
-            addLogEntry("You have nothing to craft at the moment.", 'text-yellow-400');
+            addLogEntry("You have nothing to craft at the moment.", 'text-white');
         }
         return;
     }
     if (action === 'Feed Party') {
         const foodNeeded = 1 + gameState.party.length;
         if (gameState.food < foodNeeded) {
-            addLogEntry("You don't have enough food to share a proper meal.", 'text-yellow-400');
+            addLogEntry("You don't have enough food to share a proper meal.", 'text-white');
             return;
         }
-        addLogEntry('You share a meal with your family, restoring some vitality.', 'text-green-400');
+        addLogEntry('You share a meal with your family, restoring some vitality.', 'text-white');
         setGameState(prev => ({
             ...prev,
             food: prev.food - foodNeeded,
@@ -318,25 +384,47 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
     setIsLoading(true);
     const outcome = await generateActionOutcome(player, gameState, action);
-    addLogEntry(outcome.description, 'text-amber-300');
+
+    let newDay = gameState.day;
+    if (action === 'Travel') {
+        newDay = gameState.day + 7;
+    }
 
     setGameState(prevGameState => {
         let newState = { ...prevGameState };
-        
-        if (action !== 'Scout Ahead') {
-            newState.day += 1;
+
+        // Only Travel advances time by 1 week
+        if (action === 'Travel') {
+            newState.day += 7;
+        }
+
+        // Actions other than Travel consume stamina
+        if (action !== 'Travel') {
+            const staminaCost = action === 'Scout Ahead' ? 10 : 15;
+            newState.stamina = Math.max(0, newState.stamina - staminaCost);
         }
 
         newState.health = Math.max(0, Math.min(100, newState.health + outcome.health_change));
-        
+
         const foodConsumed = action === 'Travel' ? (1 + newState.party.length) : 0;
         newState.food = Math.max(0, newState.food + outcome.food_change - foodConsumed);
-        
+
         newState.money = Math.max(0, newState.money + outcome.money_change);
         newState.oxen = Math.max(0, newState.oxen + outcome.oxen_change);
-        
+
+        // Update weather and season if traveling
+        let weatherEffect = { distanceModifier: 1.0, healthCost: 0, description: '' };
+        if (action === 'Travel') {
+            newState.season = getSeason(newState.day);
+            newState.weather = generateWeather(newState.season);
+            weatherEffect = getWeatherTravelEffect(newState.weather);
+        }
+
         // Calculate distance with modifiers
         let distanceChange = outcome.distance_change || 0;
+        if (action === 'Travel') {
+            distanceChange = Math.floor(distanceChange * weatherEffect.distanceModifier);
+        }
         if (newState.conditions.includes('Injured')) distanceChange *= 0.75;
         if (newState.conditions.includes('Wagon Damaged')) distanceChange *= 0.5;
         if (newState.oxen === 1) distanceChange *= 0.8;
@@ -344,35 +432,71 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         if (newState.oxen > 2) distanceChange *= 1.1;
         distanceChange = Math.floor(distanceChange);
         newState.distanceTraveled += distanceChange;
-        
+
+        // Apply weather health cost
+        if (action === 'Travel' && weatherEffect.healthCost > 0) {
+            newState.health = Math.max(0, newState.health - weatherEffect.healthCost);
+        }
+
         newState.distanceToRome = Math.max(0, TOTAL_DISTANCE_TO_ROME - newState.distanceTraveled);
         newState.inventory = updateInventory(newState.inventory, outcome.inventory_changes || []);
         newState.conditions = updateConditions(newState.conditions, outcome.conditions_add, outcome.conditions_remove);
-        
+
         const changedParty = applyPartyChanges(newState.party, outcome.party_changes || []);
         const { living } = checkPartyDeaths(changedParty, newState.day);
         newState.party = living;
 
         if (action === 'Make Camp') newState.phase = 'camp';
-        
+
         if (outcome.merchant_encountered) {
             newState.phase = 'merchant_encounter';
-            addLogEntry("You encounter a traveling merchant on the road.", 'text-cyan-400 font-bold');
         } else if (action === 'Travel') {
             // Check for arrival at a checkpoint city
             const nextCheckpoint = ROUTE_CHECKPOINTS[nextCheckpointIndex];
             if (nextCheckpoint && newState.distanceTraveled >= nextCheckpoint.distance) {
                 newState.phase = 'in_city';
                 newState.currentLocation = `the city of ${nextCheckpoint.name}`;
-                addLogEntry(`You have arrived at the city of ${nextCheckpoint.name}! You can rest and resupply here.`, 'text-purple-400 font-bold');
                 setNextCheckpointIndex(prev => prev + 1);
             }
         }
-        
+
         return newState;
     });
 
+    // Add log entries after state update
+    if (action === 'Travel') {
+        addLogEntry(outcome.description, 'text-white', newDay);
+    } else {
+        addLogEntry(outcome.description, 'text-white');
+    }
+
+    // Add special event log entries
+    if (outcome.merchant_encountered) {
+        addLogEntry("You encounter a traveling merchant on the road.", 'text-cyan-300', newDay);
+    }
+
+    // Check for city arrival
+    const nextCheckpoint = ROUTE_CHECKPOINTS[nextCheckpointIndex];
+    if (action === 'Travel' && nextCheckpoint && (gameState.distanceTraveled + (outcome.distance_change || 0)) >= nextCheckpoint.distance) {
+        addLogEntry(`You have arrived at the city of ${nextCheckpoint.name}! You can rest and resupply here.`, 'text-purple-300', newDay);
+    }
+
     setIsLoading(false);
+
+    // Check for random event after travel - show modal immediately
+    if (action === 'Travel' && !outcome.merchant_encountered) {
+        // Show loading state immediately
+        setRandomEvent({ scenario: 'loading' });
+
+        // Generate event in background
+        const event = await generateRandomEvent(player, gameState);
+        if (event) {
+            setRandomEvent(event);
+        } else {
+            // No event generated, close modal
+            setRandomEvent(null);
+        }
+    }
 
   }, [player, gameState, addLogEntry, isGameOver, isLoading, nextCheckpointIndex]);
   
@@ -395,7 +519,12 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                 if (member.health > 0) {
                     logMessages.push({ message: `${member.name} is starving.`, color: 'text-red-500' });
                 }
-                return { ...member, health: member.health - 5 };
+                return {
+                    ...member,
+                    health: member.health - 5,
+                    relationship: Math.max(0, member.relationship - 3),
+                    mood: member.health <= 30 ? 'afraid' as const : 'worried' as const
+                };
             });
             needsUpdate = true;
         }
@@ -504,105 +633,236 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleAction, actionButtons, activeWindow]);
 
+  const getRelationshipText = (relationship: number) => {
+    if (relationship >= 90) return { text: 'Devoted', color: 'text-green-400', desc: 'They would die for you' };
+    if (relationship >= 75) return { text: 'Loyal', color: 'text-green-300', desc: 'They trust your judgment' };
+    if (relationship >= 60) return { text: 'Trusting', color: 'text-blue-300', desc: 'They believe in you' };
+    if (relationship >= 40) return { text: 'Uncertain', color: 'text-yellow-400', desc: 'They have doubts' };
+    if (relationship >= 20) return { text: 'Distant', color: 'text-orange-400', desc: 'They question everything' };
+    return { text: 'Resentful', color: 'text-red-400', desc: 'They may abandon you' };
+  };
+
+  const getTrustText = (trust: number) => {
+    if (trust >= 80) return { text: 'Complete', color: 'text-cyan-400' };
+    if (trust >= 60) return { text: 'Strong', color: 'text-blue-300' };
+    if (trust >= 40) return { text: 'Wavering', color: 'text-yellow-400' };
+    if (trust >= 20) return { text: 'Fragile', color: 'text-orange-400' };
+    return { text: 'Broken', color: 'text-red-400' };
+  };
+
+  const getMoodEmoji = (mood: string) => {
+    switch(mood) {
+      case 'devoted': return '🥰';
+      case 'content': return '😊';
+      case 'worried': return '😟';
+      case 'afraid': return '😨';
+      case 'angry': return '😠';
+      case 'hopeful': return '🙂';
+      default: return '😐';
+    }
+  };
+
+  const getTraitEmoji = (trait: string) => {
+    switch(trait) {
+      case 'brave': return '⚔️';
+      case 'cautious': return '🛡️';
+      case 'optimistic': return '🌟';
+      case 'pessimistic': return '☁️';
+      case 'faithful': return '✝️';
+      case 'pragmatic': return '🔧';
+      case 'protective': return '🤝';
+      case 'independent': return '🦅';
+      default: return '💭';
+    }
+  };
+
   const renderWindowContent = () => {
     switch (activeWindow) {
         case 'Description': return <div><h3 className="text-2xl text-amber-100 mb-2">{player.profession}</h3><p className="text-gray-300">{PROFESSION_STATS[player.profession].description}</p></div>;
         case 'Inventory':
             const inventoryItems = Object.entries(gameState.inventory);
             return (
-                <ul className="text-lg space-y-2 text-gray-200">
+                <div className="space-y-3">
                     {inventoryItems.length > 0 ? (
                         inventoryItems.map(([item, quantity]) => {
                             const effect = ITEM_EFFECTS[item];
+                            const icon = ITEM_ICONS[item] || '📦';
                             return (
-                                <li key={item} className="flex justify-between items-center border-b border-amber-600/20 pb-1">
-                                    <span>{item}: {quantity}</span>
+                                <div key={item} className="bg-stone-700/30 p-3 rounded-lg border border-amber-600/20">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-2xl">{icon}</span>
+                                            <div>
+                                                <div className="text-amber-200 font-bold">{item}</div>
+                                                <div className="text-sm text-gray-400">Quantity: {quantity}</div>
+                                            </div>
+                                        </div>
+                                        {effect && (
+                                            <button
+                                                onClick={() => handleUseItem(item)}
+                                                className="text-sm px-3 py-1 border border-amber-400 text-amber-400 hover:bg-amber-400 hover:text-stone-900 disabled:border-gray-500 disabled:text-gray-500 disabled:cursor-not-allowed rounded-md transition-colors"
+                                            >
+                                                Use
+                                            </button>
+                                        )}
+                                    </div>
                                     {effect && (
-                                        <button onClick={() => handleUseItem(item)} className="text-sm px-2 py-1 border border-amber-400 text-amber-400 hover:bg-amber-400 hover:text-stone-900 disabled:border-gray-500 disabled:text-gray-500 disabled:cursor-not-allowed rounded-md">Use</button>
+                                        <p className="text-xs text-gray-300 italic">{effect.description}</p>
                                     )}
-                                </li>
+                                </div>
                             )
                         })
-                    ) : ( <li className="italic text-gray-400">Your bags are empty.</li> )}
-                </ul>
+                    ) : (
+                        <div className="text-center py-8">
+                            <p className="text-gray-400 italic">Your bags are empty.</p>
+                        </div>
+                    )}
+                </div>
             );
         case 'History': return <Log log={log} />;
         case 'Party': return (
             <div className="space-y-4">
                 {gameState.party.length === 0 ? (
-                    <p className="text-gray-400 italic text-center py-8">You travel alone...</p>
+                    <p className="text-gray-400 text-center py-8">You travel alone. Your family did not survive the journey.</p>
                 ) : (
                     gameState.party.map(member => {
-                        const healthPercent = Math.max(0, member.health);
-                        const healthColor = healthPercent >= 75 ? 'bg-green-500' : healthPercent >= 50 ? 'bg-yellow-500' : healthPercent >= 25 ? 'bg-orange-500' : 'bg-red-600';
-                        const isAlive = member.health > 0;
+                        const relStatus = getRelationshipText(member.relationship);
+                        const trustStatus = getTrustText(member.trust);
+                        const canHaveDeepTalk = !member.lastConversation || (gameState.day - member.lastConversation) >= 3;
 
                         return (
-                            <div key={member.name} className={`border-2 ${isAlive ? 'border-amber-600/40' : 'border-gray-600/40'} rounded-lg p-3 bg-stone-800/50`}>
-                                <div className="flex justify-between items-start mb-2">
+                            <div key={member.name} className="bg-gradient-to-br from-stone-700/40 to-stone-800/40 p-4 rounded-lg border-2 border-amber-600/30 space-y-3">
+                                <div className="flex justify-between items-start">
                                     <div>
-                                        <h3 className={`font-bold text-xl ${isAlive ? 'text-amber-200' : 'text-gray-500'}`}>{member.name}</h3>
-                                        <p className="text-sm text-gray-400">Family Member</p>
+                                        <h3 className="text-xl text-amber-200 font-bold">{member.name}</h3>
+                                        <p className="text-sm text-gray-400 capitalize">{member.role}</p>
                                     </div>
-                                    {isAlive ? (
-                                        <span className={`text-sm px-2 py-1 rounded ${healthPercent >= 75 ? 'bg-green-600/30 text-green-400' : healthPercent >= 50 ? 'bg-yellow-600/30 text-yellow-400' : healthPercent >= 25 ? 'bg-orange-600/30 text-orange-400' : 'bg-red-600/30 text-red-400'}`}>
-                                            {healthPercent >= 75 ? 'Healthy' : healthPercent >= 50 ? 'Weary' : healthPercent >= 25 ? 'Injured' : 'Critical'}
-                                        </span>
-                                    ) : (
-                                        <span className="text-sm px-2 py-1 rounded bg-gray-700/50 text-gray-400">Deceased</span>
+                                    <div className="flex gap-2 items-center">
+                                        <span className="text-2xl" title={member.personalityTrait}>{getTraitEmoji(member.personalityTrait)}</span>
+                                        <span className="text-2xl" title={`Mood: ${member.mood}`}>{getMoodEmoji(member.mood)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Health & Conditions */}
+                                <div className="bg-stone-900/50 p-2 rounded space-y-1">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-400">Health:</span>
+                                        <span className={member.health < 30 ? 'text-red-400 font-bold' : member.health < 60 ? 'text-yellow-400' : 'text-green-400'}>{member.health}/100</span>
+                                    </div>
+                                    {member.conditions.length > 0 && (
+                                        <div className="text-xs text-red-400">
+                                            Conditions: {member.conditions.join(', ')}
+                                        </div>
                                     )}
                                 </div>
 
-                                {isAlive && (
-                                    <>
-                                        <div className="mb-3">
-                                            <div className="flex justify-between text-sm mb-1">
-                                                <span className="text-gray-300">Health</span>
-                                                <span className={healthPercent < 50 ? 'text-red-400 font-bold' : 'text-green-400'}>{member.health} / 100</span>
-                                            </div>
-                                            <div className="w-full bg-stone-700 rounded-full h-3 overflow-hidden">
-                                                <div className={`h-full ${healthColor} transition-all duration-300`} style={{ width: `${healthPercent}%` }}></div>
-                                            </div>
+                                {/* Relationship & Trust */}
+                                <div className="space-y-2">
+                                    <div>
+                                        <div className="flex justify-between text-xs mb-1">
+                                            <span className="text-gray-400">Relationship: <span className={relStatus.color}>{relStatus.text}</span></span>
+                                            <span className="text-gray-500">{member.relationship}/100</span>
                                         </div>
-
-                                        {member.conditions.length > 0 && (
-                                            <div className="mb-3 p-2 bg-red-900/20 border border-red-600/30 rounded">
-                                                <p className="text-xs text-gray-400 mb-1">Active Conditions:</p>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {member.conditions.map(cond => (
-                                                        <span key={cond} className="text-xs px-2 py-1 bg-red-600/30 text-red-300 rounded border border-red-500/50">
-                                                            {cond}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        <div className="flex gap-2 flex-wrap">
-                                            <button
-                                                onClick={() => handleOpenInventoryForTarget(member)}
-                                                className="flex-1 text-sm px-3 py-2 border-2 border-sky-500 text-sky-400 hover:bg-sky-500 hover:text-stone-900 rounded-md transition-colors font-semibold"
-                                            >
-                                                Give Item
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    const messages = [
-                                                        `${member.name} nods silently, their eyes on the horizon.`,
-                                                        `${member.name} looks tired but determined to continue.`,
-                                                        `${member.name} manages a weary smile.`,
-                                                        member.health < 50 ? `${member.name} winces in pain but says nothing.` : `${member.name} seems in good spirits.`,
-                                                        `${member.name} mentions missing home.`,
-                                                    ];
-                                                    addLogEntry(messages[Math.floor(Math.random() * messages.length)], 'text-cyan-300');
-                                                    setActiveWindow(null);
-                                                }}
-                                                className="flex-1 text-sm px-3 py-2 border-2 border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-stone-900 rounded-md transition-colors font-semibold"
-                                            >
-                                                Talk
-                                            </button>
+                                        <div className="w-full bg-stone-800 h-1.5 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full transition-all ${member.relationship >= 75 ? 'bg-green-500' : member.relationship >= 60 ? 'bg-blue-400' : member.relationship >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                style={{ width: `${member.relationship}%` }}
+                                            />
                                         </div>
-                                    </>
+                                        <p className="text-xs text-gray-500 italic mt-0.5">{relStatus.desc}</p>
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between text-xs mb-1">
+                                            <span className="text-gray-400">Trust: <span className={trustStatus.color}>{trustStatus.text}</span></span>
+                                            <span className="text-gray-500">{member.trust}/100</span>
+                                        </div>
+                                        <div className="w-full bg-stone-800 h-1.5 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full transition-all ${member.trust >= 60 ? 'bg-cyan-500' : member.trust >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                                style={{ width: `${member.trust}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => handleOpenInventoryForTarget(member)}
+                                        className="text-xs px-3 py-2 bg-amber-600/20 border border-amber-500 text-amber-300 hover:bg-amber-600/40 transition-colors rounded-md font-semibold"
+                                    >
+                                        Use Item
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            setActiveWindow(null);
+                                            const gain = 3;
+                                            addLogEntry(`You share a brief conversation with ${member.name.split(' ')[0]}.`, 'text-cyan-300');
+                                            setGameState(prev => ({
+                                                ...prev,
+                                                party: prev.party.map(m =>
+                                                    m.name === member.name
+                                                        ? { ...m, relationship: Math.min(100, m.relationship + gain), mood: m.relationship >= 60 ? 'content' as const : m.mood }
+                                                        : m
+                                                )
+                                            }));
+                                        }}
+                                        className="text-xs px-3 py-2 bg-cyan-600/20 border border-cyan-500 text-cyan-300 hover:bg-cyan-600/40 transition-colors rounded-md font-semibold"
+                                    >
+                                        Talk (+3)
+                                    </button>
+                                </div>
+
+                                {/* Deep Conversation (requires time) */}
+                                {canHaveDeepTalk && (
+                                    <button
+                                        onClick={() => {
+                                            setActiveWindow(null);
+                                            const gain = member.relationship >= 60 ? 8 : 5;
+                                            const trustGain = 3;
+                                            addLogEntry(`You have a deep conversation with ${member.name.split(' ')[0]} about the journey and what lies ahead. They seem ${member.relationship >= 60 ? 'grateful' : 'thoughtful'}.`, 'text-cyan-300');
+                                            setGameState(prev => ({
+                                                ...prev,
+                                                party: prev.party.map(m =>
+                                                    m.name === member.name
+                                                        ? {
+                                                            ...m,
+                                                            relationship: Math.min(100, m.relationship + gain),
+                                                            trust: Math.min(100, m.trust + trustGain),
+                                                            lastConversation: prev.day,
+                                                            mood: m.relationship >= 75 ? 'devoted' as const : m.relationship >= 60 ? 'content' as const : 'hopeful' as const
+                                                          }
+                                                        : m
+                                                )
+                                            }));
+                                        }}
+                                        className="w-full text-sm px-4 py-2 bg-gradient-to-r from-purple-600/30 to-blue-600/30 border-2 border-purple-500 text-purple-300 hover:from-purple-600/50 hover:to-blue-600/50 transition-colors rounded-md font-bold"
+                                    >
+                                        💬 Deep Conversation (+{member.relationship >= 60 ? 8 : 5} relationship, +3 trust)
+                                    </button>
+                                )}
+                                {!canHaveDeepTalk && (
+                                    <div className="text-xs text-gray-500 text-center italic">
+                                        (Deep conversation available in {3 - (gameState.day - (member.lastConversation || 0))} days)
+                                    </div>
+                                )}
+
+                                {/* Special Options based on relationship */}
+                                {member.relationship >= 80 && (
+                                    <div className="pt-2 border-t border-green-500/30">
+                                        <p className="text-xs text-green-400 italic text-center">
+                                            ✨ {member.name.split(' ')[0]} is deeply devoted to you and will follow you anywhere
+                                        </p>
+                                    </div>
+                                )}
+                                {member.relationship < 30 && (
+                                    <div className="pt-2 border-t border-red-500/30">
+                                        <p className="text-xs text-red-400 italic text-center">
+                                            ⚠️ {member.name.split(' ')[0]} questions your leadership and may leave if things don't improve
+                                        </p>
+                                    </div>
                                 )}
                             </div>
                         );
@@ -684,6 +944,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
   const isCamp = gameState.phase === 'camp';
   const isCity = gameState.phase === 'in_city';
   const borderColor = isCity ? 'border-purple-500' : isCamp ? 'border-sky-500' : 'border-amber-500';
+  const accentColor = isCity ? 'amber-500' : isCamp ? 'sky-500' : 'amber-500';
   
   const getModalTitle = () => {
       if (activeWindow === 'Inventory' && itemTarget) {
@@ -706,7 +967,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
       {/* Settings Gear Button */}
       <button
         onClick={() => setShowMenu(true)}
-        className="fixed top-6 right-6 z-50 p-3 bg-stone-800/90 border-2 border-amber-500 rounded-full hover:bg-stone-700 hover:border-amber-400 transition-all shadow-lg hover:scale-110"
+        className="fixed top-4 right-4 z-50 p-2 bg-stone-800/90 border-2 border-amber-500 rounded-full hover:bg-stone-700 hover:border-amber-400 transition-all shadow-lg hover:scale-110"
         aria-label="Open menu"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -717,31 +978,57 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
       <div className="grid grid-cols-5 gap-6 h-[90vh] max-h-[800px] relative z-10">
         
-        <div className={`col-span-4 flex flex-col space-y-4 bg-stone-800/80 p-4 border-2 ${borderColor} shadow-lg transition-colors duration-500 relative z-20 rounded-xl`}>
-           <ProgressBar 
+        <div className={`col-span-4 flex flex-col space-y-4 bg-gradient-to-b from-stone-800/80 to-stone-900/80 p-4 border-2 ${borderColor} shadow-2xl transition-all duration-500 relative z-20 rounded-xl`}>
+           <ProgressBar
               progress={(gameState.distanceTraveled / TOTAL_DISTANCE_TO_ROME) * 100}
               checkpoints={ROUTE_CHECKPOINTS}
               totalDistance={TOTAL_DISTANCE_TO_ROME}
+              phase={gameState.phase}
            />
-           <SuppliesBar phase={gameState.phase} health={gameState.health} food={gameState.food} money={gameState.money} oxen={gameState.oxen} location={gameState.currentLocation} />
+           <SuppliesBar phase={gameState.phase} health={gameState.health} stamina={gameState.stamina} food={gameState.food} money={gameState.money} oxen={gameState.oxen} location={gameState.currentLocation} />
           <div className="flex-grow flex flex-col min-h-0">
             <div className="flex-grow mb-4 min-h-0 max-h-[45vh] h-full">
               <Log log={log} />
             </div>
-            <div className="flex-shrink-0 min-h-32 flex items-center justify-center p-4 border-t-2 border-amber-600/50">
+            <div className={`flex-shrink-0 min-h-32 flex flex-col items-center justify-center p-4 border-t-2 ${isCity ? 'border-purple-600/50' : isCamp ? 'border-sky-600/50' : 'border-amber-600/50'}`}>
+              {/* Day Display */}
+              <div className="mb-3 text-center">
+                <span className="text-sm text-gray-400">Day </span>
+                <span className={`text-3xl font-bold ${isCity ? 'text-purple-300' : isCamp ? 'text-sky-300' : 'text-amber-300'} text-shadow-glow`}>{gameState.day}</span>
+              </div>
+
               {isLoading && (
                   <div className="flex flex-col items-center">
                       <LoadingSpinner />
-                      <p className="mt-2 text-amber-300">A new day dawns...</p>
+                      <p className={`mt-2 ${isCity ? 'text-purple-300' : isCamp ? 'text-sky-300' : 'text-amber-300'}`}>Processing...</p>
                   </div>
               )}
               {!isLoading && !isGameOver && (
-                  <div className="flex flex-wrap gap-4 justify-center">
-                      {actionButtons.map((btn) => (
-                          <ActionButton key={btn.action} onClick={() => handleAction(btn.action as PlayerAction)} disabled={isLoading}>
-                              {btn.label}
-                          </ActionButton>
-                      ))}
+                  <div className="flex flex-col gap-3 items-center w-full">
+                      {/* Travel button separated if it exists */}
+                      {actionButtons.some(btn => btn.action === 'Travel') && (
+                        <div className="w-full flex justify-center">
+                          <button
+                            onClick={() => handleAction('Travel')}
+                            className="px-8 py-3 bg-amber-600 border-2 border-amber-400 text-stone-900 hover:bg-amber-500 hover:border-amber-300 hover:scale-105 transition-all rounded-lg font-bold text-lg shadow-2xl hover-glow"
+                          >
+                            🚶 (1) Travel (1 Week)
+                          </button>
+                        </div>
+                      )}
+                      {/* Other action buttons */}
+                      <div className="flex flex-wrap gap-4 justify-center">
+                          {actionButtons.filter(btn => btn.action !== 'Travel').map((btn) => (
+                              <ActionButton
+                                key={btn.action}
+                                onClick={() => handleAction(btn.action as PlayerAction)}
+                                disabled={isLoading}
+                                variant={isCity ? 'purple' : isCamp ? 'sky' : 'amber'}
+                              >
+                                  {btn.label}
+                              </ActionButton>
+                          ))}
+                      </div>
                   </div>
               )}
             </div>
@@ -778,6 +1065,163 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
             >
               Resume Game
             </button>
+          </div>
+        </ModalWindow>
+      )}
+
+      {/* Random Event Modal */}
+      {randomEvent && (
+        <ModalWindow title="⚠️ An Event Occurs" onClose={() => false} hideCloseButton={true}>
+          <div className="space-y-4">
+            <div className="bg-amber-900/30 border-l-4 border-amber-500 p-4 rounded">
+              {randomEvent.scenario === 'loading' ? (
+                <div className="text-gray-200 text-lg leading-relaxed flex items-center justify-center gap-3 py-4">
+                  <span className="text-2xl animate-spin">⚔️</span>
+                  <span>Something stirs on the road ahead...</span>
+                </div>
+              ) : (
+                <p className="text-gray-200 text-lg leading-relaxed">{randomEvent.scenario}</p>
+              )}
+            </div>
+
+            {!eventOutcome && randomEvent.scenario !== 'loading' && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-amber-300 text-sm font-bold">Your Response:</label>
+                  <textarea
+                    value={eventChoice}
+                    onChange={(e) => setEventChoice(e.target.value)}
+                    placeholder="Type your response here..."
+                    className="w-full h-32 p-3 bg-stone-800 border-2 border-amber-500 text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder-gray-500 resize-none"
+                    disabled={isProcessingEvent}
+                    autoFocus
+                  />
+                </div>
+
+                <button
+                  onClick={async () => {
+                    if (!eventChoice.trim()) return;
+                    setIsProcessingEvent(true);
+
+                    const outcome = await processEventChoice(player, gameState, randomEvent.scenario, eventChoice);
+                    setEventOutcome(outcome);
+
+                    // Apply outcome to game state
+                    setGameState(prev => {
+                      let newState = { ...prev };
+                      newState.health = Math.max(0, Math.min(100, newState.health + outcome.health_change));
+                      newState.food = Math.max(0, newState.food + outcome.food_change);
+                      newState.money = Math.max(0, newState.money + outcome.money_change);
+                      newState.oxen = Math.max(0, newState.oxen + outcome.oxen_change);
+                      newState.inventory = updateInventory(newState.inventory, outcome.inventory_changes || []);
+                      newState.conditions = updateConditions(newState.conditions, outcome.conditions_add, outcome.conditions_remove);
+
+                      const changedParty = applyPartyChanges(newState.party, outcome.party_changes || []);
+                      const { living } = checkPartyDeaths(changedParty, newState.day);
+                      newState.party = living;
+
+                      return newState;
+                    });
+
+                    addLogEntry(outcome.description, 'text-cyan-300');
+                    setIsProcessingEvent(false);
+                  }}
+                  disabled={!eventChoice.trim() || isProcessingEvent}
+                  className="w-full px-6 py-3 bg-amber-600 border-2 border-amber-400 text-stone-900 hover:bg-amber-500 hover:scale-105 disabled:bg-gray-600 disabled:border-gray-500 disabled:text-gray-400 disabled:cursor-not-allowed disabled:scale-100 transition-all rounded-lg text-lg font-bold shadow-lg"
+                >
+                  {isProcessingEvent ? '⏳ Processing...' : '✓ Submit Choice'}
+                </button>
+              </>
+            )}
+
+            {eventOutcome && (
+              <>
+                <div className="bg-stone-900/50 border-2 border-cyan-500 p-4 rounded-lg space-y-3 animate-fade-in">
+                  <h3 className="text-cyan-300 font-bold text-xl">Outcome:</h3>
+                  <p className="text-gray-200 text-lg leading-relaxed">{eventOutcome.description}</p>
+
+                  <div className="border-t border-cyan-500/30 pt-3 space-y-2">
+                    <h4 className="text-cyan-400 font-semibold">Effects:</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {eventOutcome.health_change !== 0 && (
+                        <div className={`flex items-center gap-2 ${eventOutcome.health_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <span>❤️ Health:</span>
+                          <span className="font-bold">{eventOutcome.health_change > 0 ? '+' : ''}{eventOutcome.health_change}</span>
+                        </div>
+                      )}
+                      {eventOutcome.food_change !== 0 && (
+                        <div className={`flex items-center gap-2 ${eventOutcome.food_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <span>🥖 Food:</span>
+                          <span className="font-bold">{eventOutcome.food_change > 0 ? '+' : ''}{eventOutcome.food_change}</span>
+                        </div>
+                      )}
+                      {eventOutcome.money_change !== 0 && (
+                        <div className={`flex items-center gap-2 ${eventOutcome.money_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <span>💰 Money:</span>
+                          <span className="font-bold">{eventOutcome.money_change > 0 ? '+' : ''}{eventOutcome.money_change}</span>
+                        </div>
+                      )}
+                      {eventOutcome.oxen_change !== 0 && (
+                        <div className={`flex items-center gap-2 ${eventOutcome.oxen_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <span>🐂 Oxen:</span>
+                          <span className="font-bold">{eventOutcome.oxen_change > 0 ? '+' : ''}{eventOutcome.oxen_change}</span>
+                        </div>
+                      )}
+                      {eventOutcome.conditions_add && eventOutcome.conditions_add.length > 0 && (
+                        <div className="col-span-2 flex items-center gap-2 text-red-400">
+                          <span>⚠️ Conditions:</span>
+                          <span className="font-bold">{eventOutcome.conditions_add.join(', ')}</span>
+                        </div>
+                      )}
+                      {eventOutcome.conditions_remove && eventOutcome.conditions_remove.length > 0 && (
+                        <div className="col-span-2 flex items-center gap-2 text-green-400">
+                          <span>✓ Removed:</span>
+                          <span className="font-bold">{eventOutcome.conditions_remove.join(', ')}</span>
+                        </div>
+                      )}
+                      {eventOutcome.inventory_changes && eventOutcome.inventory_changes.length > 0 && (
+                        <div className="col-span-2 flex flex-col gap-1 text-cyan-300">
+                          <span>📦 Inventory:</span>
+                          {eventOutcome.inventory_changes.map((change: any, i: number) => (
+                            <span key={i} className="font-bold ml-4">
+                              {change.change > 0 ? '+' : ''}{change.change} {change.item}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {eventOutcome.party_changes && eventOutcome.party_changes.length > 0 && (
+                        <div className="col-span-2 flex flex-col gap-1 text-orange-300">
+                          <span>👥 Party:</span>
+                          {eventOutcome.party_changes.map((change: any, i: number) => (
+                            <span key={i} className="font-bold ml-4">
+                              {change.name}: {change.health_change > 0 ? '+' : ''}{change.health_change || 0} health
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {eventOutcome.health_change === 0 && eventOutcome.food_change === 0 &&
+                     eventOutcome.money_change === 0 && eventOutcome.oxen_change === 0 &&
+                     (!eventOutcome.conditions_add || eventOutcome.conditions_add.length === 0) &&
+                     (!eventOutcome.inventory_changes || eventOutcome.inventory_changes.length === 0) &&
+                     (!eventOutcome.party_changes || eventOutcome.party_changes.length === 0) && (
+                      <div className="text-gray-400 italic text-sm">No significant effects</div>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setRandomEvent(null);
+                    setEventChoice('');
+                    setEventOutcome(null);
+                  }}
+                  className="w-full px-6 py-3 bg-cyan-600 border-2 border-cyan-400 text-stone-900 hover:bg-cyan-500 hover:scale-105 transition-all rounded-lg text-lg font-bold shadow-lg"
+                >
+                  Continue Journey
+                </button>
+              </>
+            )}
           </div>
         </ModalWindow>
       )}

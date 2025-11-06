@@ -52,7 +52,7 @@ const outcomeSchema = {
                 },
                 party_changes: {
                     type: Type.ARRAY,
-                    description: "A list of changes to party members. Target members by name. Example: [{'name': 'Marie', 'health_change': -10, 'conditions_add': ['Sick']}]",
+                    description: "A list of changes to party members. Target members by name. Example: [{'name': 'Marie', 'health_change': -10, 'conditions_add': ['Sick'], 'relationship_change': -5, 'mood': 'afraid'}]",
                     items: {
                         type: Type.OBJECT,
                         properties: {
@@ -60,6 +60,8 @@ const outcomeSchema = {
                             health_change: { type: Type.NUMBER, description: "Integer change in the party member's health." },
                             conditions_add: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Conditions to add to this member." },
                             conditions_remove: { type: Type.ARRAY, items: { type: 'STRING' }, description: "Conditions to remove from this member." },
+                            relationship_change: { type: Type.NUMBER, description: "Change to relationship with player (-20 to +20). Negative if they blame the player, positive if they're grateful." },
+                            mood: { type: Type.STRING, description: "Set mood to: 'content', 'worried', 'afraid', 'angry', or 'hopeful'" }
                         },
                         required: ['name']
                     }
@@ -72,13 +74,13 @@ const outcomeSchema = {
 };
 
 const getPartyStatusString = (party: PartyMember[]) => {
-    if (party.length === 0) return "The player is traveling alone.";
-    return "The player is traveling with their family: " + party.map(p => `${p.name} (Health: ${p.health}, Conditions: ${p.conditions.join(', ') || 'None'})`).join('; ');
+    if (party.length === 0) return "The player is traveling alone. Their family did not survive.";
+    return "The player is traveling with their family: " + party.map(p => `${p.name} (${p.role}, Personality: ${p.personalityTrait}, Health: ${p.health}, Mood: ${p.mood}, Relationship: ${p.relationship}/100, Trust: ${p.trust}/100, Conditions: ${p.conditions.join(', ') || 'None'})`).join('; ');
 };
 
 const getSystemInstruction = (player: Player, gameState: GameState) => `
 You are a text-based RPG game master for "Le Chemin de Rome" (The Road to Rome).
-The year is 1640. The player is travelling from France to Rome.
+The year is 1640. Europe is in chaos from the Thirty Years' War. The player is travelling from France to Rome through dangerous territories.
 The player is a ${player.profession} named ${player.name}.
 ${getPartyStatusString(gameState.party)}
 Current game state:
@@ -91,31 +93,64 @@ Current game state:
 - Inventory: ${JSON.stringify(gameState.inventory)}
 - Player Active Conditions: ${gameState.conditions.join(', ') || 'None'}
 
-Your role is to create engaging, challenging, and historically plausible outcomes for the player's actions.
-Generate a wide variety of events: weather (sudden storms, heat), terrain (muddy roads, a broken bridge), social (meeting other travelers, suspicious figures), and discoveries (an abandoned campsite, a hidden spring).
-IMPORTANT: Keep the "description" of the outcome to 1-2 sentences. It should be simple and direct. Not every day involves a major event.
-The outcome can affect health, resources, inventory, and character conditions.
-An event can affect a party member specifically by name.
-The journey is difficult. Keep the tone serious.
+Your role is to create DRAMATIC, EXCITING, and historically plausible outcomes for the player's actions.
+Europe in 1640: Religious wars, bandits, plague-stricken villages, corrupt officials, witch hunts, mercenaries, deserters, mysterious cultists, alchemists, inquisitors.
+Generate VARIED and INTENSE events: ambushes by bandits, encounters with soldiers, plague villages, religious zealots, fortune tellers, wounded travelers begging for help, abandoned battlefields with supplies, mysterious strangers with secrets, corrupt toll collectors, witch accusations, supernatural rumors, desperate refugees.
+
+AVOID BORING DESCRIPTIONS like "the path is muddy" or "you make steady progress" - be DRAMATIC and SPECIFIC.
+Examples of GOOD descriptions:
+- "Armed men block the road ahead, demanding all travelers pay a 'protection fee' or face consequences."
+- "A wounded soldier crawls from the ditch, gasping that his company was ambushed by deserters just ahead."
+- "The village is silent. Too silent. Doors are marked with red crosses - plague."
+- "A wild-eyed woman grabs your arm, warning that the bridge ahead is watched by those who serve 'the old gods.'"
+
+Keep descriptions to 2-3 sentences maximum. Be DRAMATIC but CONCISE.
+The journey is DANGEROUS and full of MORAL DILEMMAS.
+
+IMPORTANT - FAMILY RELATIONSHIPS:
+Consider how events affect family dynamics. Use party_changes to reflect:
+- Family members react differently based on their personality traits (brave, cautious, optimistic, etc.)
+- Dangerous situations lower relationship if they feel endangered (-5 to -15)
+- Protecting them or making good choices raises relationship (+3 to +10)
+- Their spouse will be protective; the child will be more fearful
+- Low trust (<40) means they'll question decisions more
+- High relationship (>75) means they'll support you even in danger
+
+The outcome can affect health, resources, inventory, character conditions, AND family relationships dramatically.
 Do not break character. Do not output anything other than the requested JSON.
 `;
 
 const getActionPrompt = (action: PlayerAction, profession: Profession): string => {
     switch (action) {
         case 'Travel':
-            return `The player chose to travel for a day. Generate a varied and interesting outcome for their journey based on the system instructions. An obstacle could make the player or a party member 'Injured' or damage the wagon ('Wagon Damaged'). There's a small chance of encountering a merchant. The outcome must include a 'distance_change' between 15 and 40 km. It must also include food and health changes for the day's travel for the entire party. Reduce the frequency of the 'Exhausted' condition; save it for very challenging events.`;
+            return `The player chose to travel for a week. Generate a DRAMATIC and EXCITING outcome.
+Examples of good travel events:
+- Bandit ambush demanding valuables
+- Encounter with plague refugees
+- Military checkpoint with suspicious soldiers
+- Finding a corpse with mysterious items
+- Witnessing an execution or witch burning
+- Crossing paths with dangerous mercenaries
+- Stumbling upon a hidden shrine or cult gathering
+- Being accused of witchcraft by villagers
+- Finding an abandoned battlefield with supplies (and bodies)
+- Meeting a desperate alchemist fleeing the Inquisition
+
+Make it SPECIFIC and DRAMATIC. Avoid generic descriptions.
+The outcome must include 'distance_change' between 15 and 40 km.
+There's a small chance of encountering a traveling merchant.
+Consider food consumption and health impacts from the week's travel.`;
         case 'Rest':
-             return "The player chose to rest for the day. Describe their day of rest in 1-2 sentences. This action restores health and removes the 'Exhausted' condition for the player or party members. 'distance_change' must be 0. The entire party still consumes some food.";
+             return "The player rests. Keep it brief but make it feel earned. Maybe they find a moment of peace, or their rest is disturbed by nightmares of the road. 'distance_change' must be 0. Restores health and removes 'Exhausted' condition.";
         case 'Make Camp':
-            return "The player chose to set up camp for the day. Describe them setting up camp in 1-2 sentences. The outcome should be minimal. This action transitions them to the 'camp' phase where they will make other choices.";
+            return "The player sets up camp. Describe what they notice as they make camp - signs of other travelers, distant sounds, the feel of the place. Keep it atmospheric but brief. This transitions to 'camp' phase.";
         case 'Scout Ahead':
-            return "The player spends some time scouting the path ahead. Describe what they see in 1-2 sentences. This is purely for flavor and information, it should not have any stat changes. Example: 'You see dark clouds gathering in the mountains ahead,' or 'You find tracks indicating a merchant passed this way recently.'";
+            return "The player scouts ahead. Show them something INTERESTING or OMINOUS: approaching soldiers, smoke from a village, signs of recent violence, strange symbols carved into trees, etc. Be SPECIFIC. This is for flavor only, no stat changes.";
         case 'Forage for Herbs':
-            return "As an Apothecary, the player spends time foraging for useful plants. Describe their search in 1-2 sentences. They might find 'Medicinal Herbs' or nothing at all.";
+            return "As an Apothecary, the player forages for herbs. Maybe they find useful plants, or encounter something unexpected while searching (a grave, a trapped animal, strange mushrooms). They might find 'Medicinal Herbs' or face a minor challenge.";
         case 'Repair Wagon':
-            return "As a Blacksmith, the player attempts to repair their wagon using scrap metal. Describe the repair attempt. This action should remove the 'Wagon Damaged' condition.";
+            return "As a Blacksmith, the player repairs the wagon. Maybe the damage reveals something hidden, or the work attracts attention. Keep it interesting but focused. This removes 'Wagon Damaged' condition.";
     }
-    // Default case for camp actions that don't need AI (like Hunt, which is now interactive)
     return "This action is handled locally and should not require an AI-generated outcome.";
 }
 
@@ -151,6 +186,109 @@ export const generateCharacterImage = async (player: Player): Promise<string> =>
 
         // Fallback: Use pre-generated pixel art sprites
         return getRandomSprite(player.profession);
+    }
+};
+
+export const generateRandomEvent = async (player: Player, gameState: GameState): Promise<{scenario: string} | null> => {
+    if (!ai) return null;
+
+    // Random chance for event (60% chance - events are central to the game)
+    if (Math.random() > 0.6) return null;
+
+    try {
+        const systemInstruction = getSystemInstruction(player, gameState);
+        const prompt = `Generate a DRAMATIC random event that the player encounters. This is 1640 Europe during the Thirty Years' War. Make it EXCITING and DANGEROUS.
+
+Examples of GOOD events:
+- Armed bandits surround you, demanding everything. Their leader eyes your family hungrily.
+- A man in priest's robes runs toward you screaming "They burn innocents! The Inquisition has gone mad!"
+- You find a wounded woman clutching a satchel. She whispers "Don't let them take it" before dying.
+- Soldiers drag a man from his home. "Witch!" they cry. He locks eyes with you, pleading silently.
+- A plague cart rolls by. The driver grins and says "Room for more! You look feverish, friend."
+- Mercenaries block the road. "Pay the toll or become the toll," their captain laughs.
+- A child runs to you crying that his village was attacked and everyone is dead or taken.
+- You witness a public execution. The condemned shouts "The old gods return! The crosses will fall!"
+
+Make it 2-3 sentences. Be DRAMATIC and SPECIFIC. Create moral dilemmas and dangerous choices.
+The scenario should end with a question asking what the player wants to do.
+
+Return ONLY a JSON object with a "scenario" field.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [{text: prompt }] },
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        scenario: { type: Type.STRING }
+                    },
+                    required: ["scenario"]
+                }
+            },
+        });
+
+        const jsonStr = response.text;
+        const data = JSON.parse(jsonStr);
+        return data;
+
+    } catch (error) {
+        console.error("Error generating random event:", error);
+        return null;
+    }
+};
+
+export const processEventChoice = async (player: Player, gameState: GameState, scenario: string, playerChoice: string) => {
+    const getFallbackOutcome = () => ({
+        description: "Your choice has been noted. You continue on your way.",
+        health_change: 0,
+        food_change: 0,
+        money_change: 0,
+        oxen_change: 0,
+        distance_change: 0,
+        merchant_encountered: false,
+        inventory_changes: [],
+        conditions_add: [],
+        conditions_remove: [],
+        party_changes: [],
+    });
+
+    if (!ai) return getFallbackOutcome();
+
+    try {
+        const systemInstruction = getSystemInstruction(player, gameState);
+        const prompt = `The player encountered this scenario: "${scenario}"
+
+The player chose to respond: "${playerChoice}"
+
+Based on their choice, generate an outcome that:
+- Could be positive, negative, or neutral
+- Should logically follow from their choice
+- May affect health, resources, inventory, or conditions
+- Should be realistic to 17th century travel
+- Keep description to 2-3 sentences
+
+Generate an appropriate outcome.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [{text: prompt }] },
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: outcomeSchema,
+            },
+        });
+
+        const jsonStr = response.text;
+        const data = JSON.parse(jsonStr);
+        return data.outcome;
+
+    } catch (error) {
+        console.error("Error processing event choice:", error);
+        return getFallbackOutcome();
     }
 };
 

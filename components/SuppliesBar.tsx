@@ -5,6 +5,7 @@ import { GamePhase } from '../types';
 interface SuppliesBarProps {
   phase: GamePhase;
   health: number;
+  stamina: number;
   food: number;
   money: number;
   oxen: number;
@@ -47,7 +48,7 @@ const StatDisplay: React.FC<{ icon: string; value: string | number; label: strin
 };
 
 
-const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, food, money, oxen, location }) => {
+const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food, money, oxen, location }) => {
   const getPhaseInfo = () => {
     switch(phase) {
         case 'traveling':
@@ -66,15 +67,24 @@ const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, food, money, o
 
   const phaseInfo = getPhaseInfo();
 
+  const getBorderColor = () => {
+    switch(phase) {
+      case 'camp': return 'border-sky-600/50';
+      case 'in_city': return 'border-purple-600/50';
+      default: return 'border-amber-600/50';
+    }
+  };
+
   return (
-    <div className="w-full bg-stone-900/70 border-2 border-amber-600/50 p-2 flex items-center justify-between px-4 rounded-lg">
+    <div className={`w-full bg-gradient-to-r from-stone-900/70 via-stone-800/70 to-stone-900/70 border-2 ${getBorderColor()} p-2 flex items-center justify-between px-4 rounded-lg shadow-lg transition-all duration-500`}>
         <div className="flex items-center space-x-6">
             <StatDisplay icon="❤️" value={`${health}/${INITIAL_HEALTH}`} label="Health" currentValue={health} />
+            <StatDisplay icon="⚡" value={stamina} label="Stamina" currentValue={stamina} />
             <StatDisplay icon="🥖" value={food} label="Food" currentValue={food} />
         </div>
-        
+
         <div>
-            <h3 className={`text-xl font-bold tracking-widest transition-colors duration-500 ${phaseInfo.color}`}>
+            <h3 className={`text-xl font-bold tracking-widest transition-colors duration-500 ${phaseInfo.color} text-shadow-glow`}>
                 {phaseInfo.text}
             </h3>
         </div>
