@@ -80,6 +80,7 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ player, imageUrl, gameS
             <InfoButton onClick={() => onOpenWindow('Party')}>Family</InfoButton>
             <InfoButton onClick={() => onOpenWindow('Inventory')}>Inventory</InfoButton>
             <InfoButton onClick={() => onOpenWindow('History')}>History</InfoButton>
+            <InfoButton onClick={() => onOpenWindow('References')}>References</InfoButton>
         </div>
       </div>
     </div>

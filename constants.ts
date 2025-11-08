@@ -1,6 +1,46 @@
-import { Profession, CharacterStats, HuntableAnimal } from './types';
+import { Profession, CharacterStats, HuntableAnimal, Gender } from './types';
 
 export const TOTAL_DISTANCE_TO_ROME = 1400; // km, approximate from central France
+
+// Starting Cities in France (Early Modern Period)
+export const FRENCH_STARTING_CITIES = [
+  'Paris',
+  'Lyon',
+  'Marseille',
+  'Bordeaux',
+  'Toulouse',
+  'Rouen',
+  'Orléans',
+  'Tours',
+  'Dijon',
+  'Reims',
+];
+
+// Gender symbols
+export const GENDER_SYMBOLS = {
+  Male: '♂️',
+  Female: '♀️',
+};
+
+// Professions by gender
+export const MALE_PROFESSIONS = [
+  Profession.Merchant,
+  Profession.Priest,
+  Profession.Soldier,
+  Profession.Blacksmith,
+  Profession.Scholar,
+  Profession.Apothecary,
+  Profession.Royal,
+];
+
+export const FEMALE_PROFESSIONS = [
+  Profession.Merchant_F,
+  Profession.Nun,
+  Profession.Midwife,
+  Profession.Herbalist,
+  Profession.Scholar_F,
+  Profession.NobleWoman,
+];
 
 export const ROUTE_CHECKPOINTS = [
     { name: 'Dijon', distance: 300 },
@@ -115,7 +155,102 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
         'Iron Rations': 20,
         'Bandages': 10,
       },
-  }
+  },
+  // Female professions
+  [Profession.Nun]: {
+    money: 200,
+    food: 110,
+    oxen: 1,
+    description: "Devoted to God, respected in religious circles. Can provide spiritual guidance and has access to church resources.",
+    inventory: {
+      'Holy Symbol': 1,
+      'Prayer Book': 1,
+      'Bandages': 4,
+      'Holy Water': 3,
+      'Candles': 4,
+      'Medicinal Herbs': 2,
+      'Herbal Tea': 2,
+    },
+  },
+  [Profession.Midwife]: {
+    money: 250,
+    food: 100,
+    oxen: 1,
+    description: "Skilled in healing and childbirth. Trusted in communities for medical knowledge and herbal remedies.",
+    inventory: {
+      'Bandages': 6,
+      'Medicinal Herbs': 4,
+      'Honey': 3,
+      'Healing Poultice': 2,
+      'Herbal Tea': 3,
+      'Dried Fruit': 3,
+    },
+  },
+  [Profession.Herbalist]: {
+    money: 260,
+    food: 105,
+    oxen: 1,
+    description: "Expert in plants and natural remedies. Can forage for medicinal herbs and craft healing items.",
+    inventory: {
+      'Medicinal Herbs': 6,
+      'Mortar and Pestle': 1,
+      'Bandages': 3,
+      'Honey': 4,
+      'Herbal Tea': 3,
+      'Dried Fruit': 4,
+      'Salted Fish': 2,
+    },
+  },
+  [Profession.NobleWoman]: {
+    money: 1500,
+    food: 180,
+    oxen: 3,
+    description: "Of high birth with considerable wealth and influence. Commands respect and can leverage social connections.",
+    inventory: {
+      'Fine Silks': 4,
+      'Wine': 8,
+      'Healing Poultice': 4,
+      'Holy Water': 2,
+      'Compass': 1,
+      'Map': 1,
+      'Cheese Wheel': 8,
+      'Prayer Book': 1,
+      'Luxury Bundle': 1,
+      'Iron Rations': 15,
+      'Bandages': 8,
+      'Warm Clothing': 2,
+    },
+  },
+  [Profession.Merchant_F]: {
+    money: 480,
+    food: 95,
+    oxen: 2,
+    description: "Savvy trader who built her business against societal odds. Gets a 15% bonus on sales and 15% discount on purchases at markets.",
+    inventory: {
+      'Fine Silks': 2,
+      'Spices': 2,
+      'Bandages': 2,
+      'Wine': 2,
+      'Compass': 1,
+      'Dried Fruit': 4,
+      'Cheese Wheel': 3,
+    },
+  },
+  [Profession.Scholar_F]: {
+    money: 190,
+    food: 95,
+    oxen: 1,
+    description: "Rare woman of letters, exceptionally educated. Faces societal barriers but possesses valuable knowledge.",
+    inventory: {
+      'Scholarly Tome': 1,
+      'Ink & Quill': 3,
+      'Bandages': 2,
+      'Map': 1,
+      'Candles': 2,
+      'Lantern Oil': 2,
+      'Prayer Book': 1,
+    },
+  },
 };
 
 export const HUNTABLE_ANIMALS: HuntableAnimal[] = [
@@ -209,6 +344,62 @@ export const ITEM_ICONS: Record<string, string> = {
     'Mortar and Pestle': '⚗️',
     'Hammer': '🔨',
     'Sharpening Stone': '🪨',
+};
+
+// Comprehensive item descriptions for ALL items
+export const ITEM_DESCRIPTIONS: Record<string, string> = {
+    // Consumables with effects
+    'Bandages': "Linen strips for binding wounds. Essential for treating injuries on the road.",
+    'Medicinal Herbs': "Collected herbs with healing properties. Can treat illness or be crafted into remedies.",
+    'Healing Poultice': "A powerful medicinal paste that treats both wounds and sickness.",
+    'Jerky': "Dried, salted meat. Portable and long-lasting sustenance for travelers.",
+    'Dried Fruit': "Sun-dried fruits preserve nutrition. Sweet and energy-restoring.",
+    'Cheese Wheel': "Aged cheese, rich in calories. A valuable food source for long journeys.",
+    'Salted Fish': "Fish preserved in salt. Common fare for travelers near waterways.",
+    'Wine': "Fortified wine from French vineyards. Warms the body and lifts spirits.",
+    'Holy Water': "Blessed water from a sacred source. Believed to have restorative powers.",
+    'Herbal Tea': "Dried herbs steeped in hot water. Soothes the mind and reduces fatigue.",
+    'Honey': "Natural sweetener with medicinal properties. Helps heal and energize.",
+    'Wagon Repair Kit': "Tools and spare parts for fixing broken wheels and axles.",
+    'Warm Clothing': "Woolen garments lined with fur. Protection against harsh weather.",
+    'Leather Boots': "Well-crafted boots that protect feet during long marches.",
+    'Field Provisions': "Complete military rations. Designed to sustain soldiers on campaign.",
+    'Iron Rations': "Hardtack, dried meat, and preserved foods. Military-grade sustenance.",
+
+    // Trade goods
+    'Fine Silks': "Luxurious silk fabrics from the East. Valuable trade commodity worth good coin.",
+    'Spices': "Exotic spices from distant lands. Highly sought after by merchants and nobles.",
+
+    // Crafting materials & tools
+    'Scrap Metal': "Pieces of iron and steel. Used by blacksmiths for repairs and crafting.",
+    'Rope': "Strong hemp rope. Useful for many purposes from securing loads to climbing.",
+    'Lantern Oil': "Refined oil for lamps and lanterns. Provides light during dark nights.",
+    'Tinderbox': "Flint, steel, and char cloth for starting fires. Essential survival tool.",
+    'Whetstone': "Sharpening stone for maintaining blades and tools in good condition.",
+    'Candles': "Tallow or beeswax candles. Provide light for reading and nighttime tasks.",
+    'Iron Nails': "Forged iron nails. Useful for repairs and construction.",
+    'Cooking Pot': "Iron pot for preparing meals. Allows cooking of proper hot food.",
+    'Bedroll': "Canvas and wool bedding. Provides comfort and warmth while camping.",
+    'Hammer': "Blacksmith's hammer. Essential tool for metalwork and repairs.",
+    'Sharpening Stone': "Fine-grained whetstone. Keeps weapons and tools razor-sharp.",
+
+    // Religious & scholarly items
+    'Holy Symbol': "Sacred religious icon. Provides spiritual comfort and identifies you as faithful.",
+    'Prayer Book': "Book of prayers and psalms. Used for daily devotions and finding peace.",
+    'Ink & Quill': "Writing implements. Scholars use these to record observations and write letters.",
+    'Scholarly Tome': "Ancient manuscript containing knowledge. Requires careful study to understand.",
+    'Scholarly Letter': "Letter of introduction to scholars in other cities. Opens doors and builds connections.",
+    'Ancient Knowledge': "Rare insights from old texts. Valuable information that aids the journey.",
+
+    // Navigation
+    'Compass': "Magnetic compass for navigation. Helps maintain proper direction even in poor weather.",
+    'Map': "Detailed map of routes to Rome. Shows cities, roads, and major landmarks.",
+
+    // Apothecary
+    'Mortar and Pestle': "Stone tools for grinding herbs. Essential for an apothecary's work.",
+
+    // Luxury
+    'Luxury Bundle': "Collection of fine goods and delicacies. Status symbol and trade item.",
 };
 
 export const ITEM_EFFECTS: Record<string, { description: string; removesCondition?: string, health_change?: number }> = {
@@ -350,6 +541,61 @@ export const CRAFTING_RECIPES = [
         result: 'Luxury Bundle',
         description: 'Your noble connections allow you to create extravagant trade bundles.',
     },
+    // Female professions
+    {
+        profession: Profession.Nun,
+        item: 'Holy Symbol',
+        requires: 'Prayer Book',
+        result: 'Holy Water',
+        description: 'You perform a blessing ritual to sanctify water.',
+    },
+    {
+        profession: Profession.Midwife,
+        item: 'Medicinal Herbs',
+        requires: 'Honey',
+        result: 'Healing Poultice',
+        description: 'You craft a powerful healing remedy from your knowledge of medicine.',
+    },
+    {
+        profession: Profession.Herbalist,
+        item: 'Medicinal Herbs',
+        requires: 'Mortar and Pestle',
+        result: 'Healing Poultice',
+        description: 'You grind the herbs into a potent healing poultice.',
+    },
+    {
+        profession: Profession.Herbalist,
+        item: 'Honey',
+        requires: 'Medicinal Herbs',
+        result: 'Herbal Tea',
+        description: 'You brew a soothing herbal tea with honey.',
+    },
+    {
+        profession: Profession.NobleWoman,
+        item: 'Wine',
+        requires: 'Fine Silks',
+        result: 'Luxury Bundle',
+        description: 'Your noble connections allow you to create extravagant trade bundles.',
+    },
+    {
+        profession: Profession.Merchant_F,
+        item: 'Fine Silks',
+        requires: 'Spices',
+        result: 'Luxury Bundle',
+        description: 'You package fine goods together to fetch a better price.',
+    },
+    {
+        profession: Profession.Scholar_F,
+        item: 'Ink & Quill',
+        result: 'Scholarly Letter',
+        description: 'You spend time writing a letter to a colleague in the next city.',
+    },
+    {
+        profession: Profession.Scholar_F,
+        item: 'Scholarly Tome',
+        result: 'Ancient Knowledge',
+        description: 'You decipher an ancient text, gaining insight that may help the journey.',
+    },
 ];
 
 
@@ -382,6 +628,26 @@ export const PROFESSION_EQUIPMENT: Record<Profession, { weapon?: string; armor?:
     weapon: 'Rapier',
     armor: 'Fine Doublet',
   },
+  // Female professions
+  [Profession.Nun]: {
+    tool: 'Prayer Book',
+  },
+  [Profession.Midwife]: {
+    tool: 'Medicine Kit',
+  },
+  [Profession.Herbalist]: {
+    tool: 'Herb Gathering Kit',
+  },
+  [Profession.NobleWoman]: {
+    armor: 'Fine Gown',
+    tool: 'Noble Seal',
+  },
+  [Profession.Merchant_F]: {
+    tool: 'Compass',
+  },
+  [Profession.Scholar_F]: {
+    tool: 'Ancient Tome',
+  },
 };
 
 // Starting skills by profession
@@ -393,6 +659,13 @@ export const PROFESSION_SKILLS: Record<Profession, { combat: number; survival: n
   [Profession.Scholar]: { combat: 5, survival: 10, persuasion: 25, medicine: 20 },
   [Profession.Apothecary]: { combat: 10, survival: 20, persuasion: 15, medicine: 40 },
   [Profession.Royal]: { combat: 20, survival: 10, persuasion: 35, medicine: 15 },
+  // Female professions
+  [Profession.Nun]: { combat: 2, survival: 12, persuasion: 28, medicine: 30 },
+  [Profession.Midwife]: { combat: 5, survival: 15, persuasion: 20, medicine: 45 },
+  [Profession.Herbalist]: { combat: 8, survival: 25, persuasion: 18, medicine: 38 },
+  [Profession.NobleWoman]: { combat: 5, survival: 8, persuasion: 40, medicine: 18 },
+  [Profession.Merchant_F]: { combat: 8, survival: 14, persuasion: 38, medicine: 12 },
+  [Profession.Scholar_F]: { combat: 3, survival: 8, persuasion: 30, medicine: 22 },
 };
 
 export const FRENCH_MALE_NAMES = [

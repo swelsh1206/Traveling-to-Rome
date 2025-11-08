@@ -1,5 +1,5 @@
 import { GoogleGenAI, Modality, Type } from "@google/genai";
-import { GameState, Inventory, PartyMember, Player, PlayerAction, Profession } from "../types";
+import { GameState, Inventory, PartyMember, Player, PlayerAction, Profession, EncounterType, Encounter } from "../types";
 import { getRandomSprite } from "../data/characterSprites";
 
 // Initialize AI with error handling
@@ -42,7 +42,7 @@ const outcomeSchema = {
                 },
                 conditions_add: {
                     type: Type.ARRAY,
-                    description: "A list of conditions to add to the player, like 'Injured', 'Sick', 'Exhausted', or 'Wagon Damaged'.",
+                    description: "A list of conditions to add to the player. Valid conditions: 'Wounded', 'Diseased', 'Exhausted', 'Broken Wagon', 'Starving'.",
                     items: { type: Type.STRING }
                 },
                 conditions_remove: {
@@ -73,15 +73,90 @@ const outcomeSchema = {
     required: ["outcome"],
 };
 
+const encounterSchema = {
+    type: Type.OBJECT,
+    properties: {
+        encounter: {
+            type: Type.OBJECT,
+            properties: {
+                npc: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING, description: "The NPC's name. Should be historically appropriate for Early Modern Europe." },
+                        type: { type: Type.STRING, description: "The type of NPC: traveler, beggar, merchant, soldier, pilgrim, bandit, priest, refugee, noble, or healer." },
+                        description: { type: Type.STRING, description: "A brief physical description of the NPC. 1-2 sentences." },
+                        mood: { type: Type.STRING, description: "The NPC's mood: friendly, neutral, hostile, or desperate." },
+                        dialogue: {
+                            type: Type.ARRAY,
+                            description: "Initial greeting from the NPC. Should be a single string in an array.",
+                            items: { type: Type.STRING }
+                        },
+                        backstory: { type: Type.STRING, description: "Optional brief backstory that explains who they are and why they're here. 1-2 sentences." },
+                    },
+                    required: ["name", "type", "description", "mood", "dialogue"]
+                },
+                situation: { type: Type.STRING, description: "What's happening when you meet this person. Sets the context. 2-3 sentences." },
+                options: {
+                    type: Type.ARRAY,
+                    description: "3-4 possible actions the player can take in this encounter.",
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            label: { type: Type.STRING, description: "The action label shown to the player. Short and clear." },
+                            action: { type: Type.STRING, description: "The action type: talk, help, trade, fight, flee, or ignore." },
+                        },
+                        required: ["label", "action"]
+                    }
+                }
+            },
+            required: ["npc", "situation", "options"]
+        }
+    },
+    required: ["encounter"]
+};
+
 const getPartyStatusString = (party: PartyMember[]) => {
     if (party.length === 0) return "The player is traveling alone. Their family did not survive.";
     return "The player is traveling with their family: " + party.map(p => `${p.name} (${p.role}, Personality: ${p.personalityTrait}, Health: ${p.health}, Mood: ${p.mood}, Relationship: ${p.relationship}/100, Trust: ${p.trust}/100, Conditions: ${p.conditions.join(', ') || 'None'})`).join('; ');
 };
 
+const getProfessionEventGuidance = (profession: Profession) => {
+    switch(profession) {
+        case Profession.Merchant:
+        case Profession.Merchant_F:
+            return "As a MERCHANT, events should often involve: trade opportunities, bandits targeting wealthy travelers, corrupt toll collectors, competing merchants, counterfeit goods, black market deals, cargo theft, smuggling opportunities.";
+        case Profession.Priest:
+            return "As a PRIEST, events should often involve: requests for last rites, heresy accusations, religious disputes, pilgrims seeking guidance, desecrated churches, possessed individuals, requests for blessings, conflicts between Catholic and Protestant.";
+        case Profession.Nun:
+            return "As a NUN, events should often involve: requests for prayers, accusations of improper behavior, religious refugees seeking sanctuary, conflicts with church authorities, pilgrims needing guidance, caring for sick travelers, religious visions, convent politics.";
+        case Profession.Soldier:
+            return "As a SOLDIER, events should often involve: deserters, military patrols, conscription attempts, battles aftermath, mercenary offers, weapons dealers, old war comrades, military intelligence, sieges.";
+        case Profession.Blacksmith:
+            return "As a BLACKSMITH, events should often involve: broken weapons/tools needing repair, requests for custom work, metal theft, forge fires, apprenticeship offers, rare metal discoveries, weapon inspections by authorities.";
+        case Profession.Scholar:
+        case Profession.Scholar_F:
+            return "As a SCHOLAR, events should often involve: ancient manuscripts, coded messages, libraries, debates with other scholars, book burnings, accusations of heresy for knowledge, forbidden texts, scientific discoveries.";
+        case Profession.Apothecary:
+            return "As an APOTHECARY, events should often involve: plague victims seeking help, poisonings, rare herb discoveries, accusations of witchcraft, requests for medicines, childbirth emergencies, mysterious ailments.";
+        case Profession.Midwife:
+            return "As a MIDWIFE, events should often involve: urgent childbirth situations, women seeking medical advice, accusations of witchcraft, requests for healing, plague victims, complications during delivery, herbal remedies for ailments, midwife guild politics.";
+        case Profession.Herbalist:
+            return "As a HERBALIST, events should often involve: rare plant discoveries, accusations of witchcraft, requests for healing potions, poisoning investigations, healing plague victims, herbal garden raids, competing herbalists, secret remedies.";
+        case Profession.Royal:
+        case Profession.NobleWoman:
+            return "As NOBILITY, events should often involve: political intrigue, assassination attempts, noble entourages, peasant uprisings, courtly etiquette challenges, inheritance disputes, demands for protection money, requests for patronage.";
+        default:
+            return "";
+    }
+};
+
 const getSystemInstruction = (player: Player, gameState: GameState) => `
 You are a text-based RPG game master for "Le Chemin de Rome" (The Road to Rome).
-The year is 1640. Europe is in chaos from the Thirty Years' War. The player is travelling from France to Rome through dangerous territories.
-The player is a ${player.profession} named ${player.name}.
+Setting: Early Modern Europe (1450-1650) - an era of religious upheaval, warfare, plague, and transformation. The Renaissance, Reformation, Counter-Reformation, and devastating religious wars define this period.
+The player is travelling from France to Rome through dangerous territories during this tumultuous age.
+The player is a ${player.gender} ${player.profession} named ${player.name}.
+${player.gender === 'Female' ? `IMPORTANT: As a woman in Early Modern Europe, ${player.name} faces additional societal challenges and prejudices, but also has access to certain social networks (other women, religious communities) that men might not. Reflect historical reality while respecting the player's agency. Women travelers often disguised themselves as men, traveled in groups, or claimed religious purposes for protection.` : ''}
+${getProfessionEventGuidance(player.profession)}
 ${getPartyStatusString(gameState.party)}
 Current game state:
 - Day: ${gameState.day}
@@ -94,8 +169,10 @@ Current game state:
 - Player Active Conditions: ${gameState.conditions.join(', ') || 'None'}
 
 Your role is to create DRAMATIC, EXCITING, and historically plausible outcomes for the player's actions.
-Europe in 1640: Religious wars, bandits, plague-stricken villages, corrupt officials, witch hunts, mercenaries, deserters, mysterious cultists, alchemists, inquisitors.
-Generate VARIED and INTENSE events: ambushes by bandits, encounters with soldiers, plague villages, religious zealots, fortune tellers, wounded travelers begging for help, abandoned battlefields with supplies, mysterious strangers with secrets, corrupt toll collectors, witch accusations, supernatural rumors, desperate refugees.
+Early Modern Europe threats: Religious wars (Thirty Years' War, French Wars of Religion), bandits and brigands, plague epidemics, corrupt officials, witch hunts, mercenary companies, deserters, inquisitors, heretics, alchemists, charlatan healers, apocalyptic preachers.
+Generate VARIED and INTENSE events that reflect the player's PROFESSION: ambushes by bandits, encounters with soldiers, plague villages, religious zealots, fortune tellers, wounded travelers begging for help, abandoned battlefields with supplies, mysterious strangers with secrets, corrupt toll collectors, witch accusations, supernatural rumors, desperate refugees, trade opportunities, crafting requests.
+
+IMPORTANT: Tailor events to the player's profession when possible. A merchant encounters different situations than a priest or soldier.
 
 AVOID BORING DESCRIPTIONS like "the path is muddy" or "you make steady progress" - be DRAMATIC and SPECIFIC.
 Examples of GOOD descriptions:
@@ -149,7 +226,7 @@ Consider food consumption and health impacts from the week's travel.`;
         case 'Forage for Herbs':
             return "As an Apothecary, the player forages for herbs. Maybe they find useful plants, or encounter something unexpected while searching (a grave, a trapped animal, strange mushrooms). They might find 'Medicinal Herbs' or face a minor challenge.";
         case 'Repair Wagon':
-            return "As a Blacksmith, the player repairs the wagon. Maybe the damage reveals something hidden, or the work attracts attention. Keep it interesting but focused. This removes 'Wagon Damaged' condition.";
+            return "As a Blacksmith, the player repairs the wagon. Maybe the damage reveals something hidden, or the work attracts attention. Keep it interesting but focused. This removes 'Broken Wagon' condition.";
     }
     return "This action is handled locally and should not require an AI-generated outcome.";
 }
@@ -162,7 +239,7 @@ export const generateCharacterImage = async (player: Player): Promise<string> =>
     }
 
     try {
-        const prompt = `16-bit pixel art portrait of a ${player.profession} from 17th century France. Fantasy RPG character style, similar to classic SNES games like Final Fantasy. The character should look weary from travel but determined. Centered bust portrait with a plain background. Retro gaming aesthetic.`;
+        const prompt = `16-bit pixel art portrait of a ${player.profession} from Early Modern Europe (1450-1650). Fantasy RPG character style, similar to classic SNES games like Final Fantasy. The character should look weary from travel but determined. Centered bust portrait with a plain background. Retro gaming aesthetic. Period-appropriate clothing and equipment.`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image',
@@ -197,7 +274,15 @@ export const generateRandomEvent = async (player: Player, gameState: GameState):
 
     try {
         const systemInstruction = getSystemInstruction(player, gameState);
-        const prompt = `Generate a DRAMATIC random event that the player encounters. This is 1640 Europe during the Thirty Years' War. Make it EXCITING and DANGEROUS.
+        const professionHint = player.profession === Profession.Merchant ? " Consider trade-related events." :
+                              player.profession === Profession.Priest ? " Consider religious events or people seeking spiritual aid." :
+                              player.profession === Profession.Soldier ? " Consider military encounters or combat situations." :
+                              player.profession === Profession.Blacksmith ? " Consider situations involving broken equipment or metalwork." :
+                              player.profession === Profession.Scholar ? " Consider events involving knowledge, books, or intellectual challenges." :
+                              player.profession === Profession.Apothecary ? " Consider medical emergencies or herb-related events." :
+                              player.profession === Profession.Royal ? " Consider political intrigue or noble affairs." : "";
+
+        const prompt = `Generate a DRAMATIC random event that the player encounters. Early Modern Europe (1450-1650) - religious wars, plague, bandits, and chaos. Make it EXCITING and DANGEROUS.${professionHint}
 
 Examples of GOOD events:
 - Armed bandits surround you, demanding everything. Their leader eyes your family hungrily.
@@ -267,7 +352,8 @@ Based on their choice, generate an outcome that:
 - Could be positive, negative, or neutral
 - Should logically follow from their choice
 - May affect health, resources, inventory, or conditions
-- Should be realistic to 17th century travel
+- Should be realistic to Early Modern European travel (1450-1650)
+- Should take into account the player's profession when relevant
 - Keep description to 2-3 sentences
 
 Generate an appropriate outcome.`;
@@ -351,5 +437,187 @@ export const generateActionOutcome = async (player: Player, gameState: GameState
     } catch (error) {
         console.error("Error generating event outcome:", error);
         return getFallbackOutcome();
+    }
+};
+
+export const generateEncounter = async (player: Player, gameState: GameState): Promise<Encounter | null> => {
+    if (!ai) return null;
+
+    // 40% chance for encounter during travel
+    if (Math.random() > 0.4) return null;
+
+    try {
+        const systemInstruction = getSystemInstruction(player, gameState);
+        const professionHint = getProfessionEventGuidance(player.profession);
+
+        const prompt = `Generate a random encounter on the road to Rome. Early Modern Europe (1450-1650).
+${professionHint}
+
+The encounter should introduce a specific NPC character that the player meets. This person should:
+- Have a clear personality and motivation
+- Present an interesting situation or dilemma
+- Offer opportunities for conversation, trade, help, or conflict
+- Be historically appropriate for the setting
+
+Good encounter examples:
+- A wounded pilgrim begging for food and medical aid, claims bandits took everything
+- A suspicious merchant offering "rare relics" at suspiciously low prices
+- A deserter soldier hiding in the woods, desperate and possibly dangerous
+- A traveling priest warning of heretics ahead, asking the player to report any suspicious activity
+- A beggar woman with a sick child, pleading for medicine or money
+- A group of refugees fleeing religious persecution, asking for guidance
+- A noble's servant looking for help finding their master who went missing
+- An old healer offering to trade remedies for supplies
+
+The NPC should feel like a real person with their own story, not just a random event.
+Provide 3-4 clear action options for the player.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [{text: prompt }] },
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: encounterSchema,
+            },
+        });
+
+        const jsonStr = response.text;
+        const data = JSON.parse(jsonStr);
+        return data.encounter;
+
+    } catch (error) {
+        console.error("Error generating encounter:", error);
+        return null;
+    }
+};
+
+export const processEncounterAction = async (
+    player: Player,
+    gameState: GameState,
+    encounter: Encounter,
+    action: string
+) => {
+    const getFallbackOutcome = () => ({
+        description: "You part ways with the stranger and continue your journey.",
+        health_change: 0,
+        food_change: 0,
+        money_change: 0,
+        oxen_change: 0,
+        distance_change: 0,
+        merchant_encountered: false,
+        inventory_changes: [],
+        conditions_add: [],
+        conditions_remove: [],
+        party_changes: [],
+    });
+
+    if (!ai) return getFallbackOutcome();
+
+    try {
+        const systemInstruction = getSystemInstruction(player, gameState);
+        const npcInfo = `NPC: ${encounter.npc.name}, a ${encounter.npc.type} who is ${encounter.npc.mood}. ${encounter.npc.description}`;
+        const situationInfo = `Situation: ${encounter.situation}`;
+
+        const prompt = `The player encountered ${npcInfo}
+${situationInfo}
+
+The player chose to: "${action}"
+
+Generate an outcome that:
+- Reflects the NPC's personality, mood, and type
+- Is appropriate for the chosen action (${action})
+- Could involve rewards, consequences, or neutral results
+- May affect health, resources, inventory, or conditions
+- Should feel meaningful and consequential
+- Keep description to 2-3 sentences
+
+Action-specific guidance:
+- talk: Learn information, build rapport, or trigger conversation
+- help: Provide aid (costs resources but may gain reputation/rewards)
+- trade: Exchange goods or money
+- fight: Combat with potential for injury or loot
+- flee: Escape quickly, possible pursuit or consequences
+- ignore: Move on, may miss opportunities or anger the NPC
+
+Generate an appropriate outcome based on the player's choice.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [{text: prompt }] },
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: outcomeSchema,
+            },
+        });
+
+        const jsonStr = response.text;
+        const data = JSON.parse(jsonStr);
+        return data.outcome;
+
+    } catch (error) {
+        console.error("Error processing encounter action:", error);
+        return getFallbackOutcome();
+    }
+};
+
+export const processEncounterConversation = async (
+    player: Player,
+    gameState: GameState,
+    encounter: Encounter,
+    playerMessage: string
+): Promise<string | null> => {
+    if (!ai) return null;
+
+    try {
+        const systemInstruction = getSystemInstruction(player, gameState);
+        const conversationHistory = encounter.npc.dialogue.join('\n');
+
+        const prompt = `You are roleplaying as ${encounter.npc.name}, a ${encounter.npc.type}.
+
+Character details:
+- Description: ${encounter.npc.description}
+- Mood: ${encounter.npc.mood}
+- Backstory: ${encounter.npc.backstory || "Unknown"}
+- Current situation: ${encounter.situation}
+
+Conversation so far:
+${conversationHistory}
+
+The player says: "${playerMessage}"
+
+Respond as this character would. Keep your response to 2-4 sentences. Stay in character. Be dramatic and engaging.
+The character's mood affects how they respond:
+- friendly: Open, helpful, warm
+- neutral: Cautious, businesslike, reserved
+- hostile: Aggressive, threatening, unfriendly
+- desperate: Pleading, emotional, urgent
+
+Return ONLY a JSON object with a "response" field containing the NPC's reply.`;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: { parts: [{text: prompt }] },
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        response: { type: Type.STRING }
+                    },
+                    required: ["response"]
+                }
+            },
+        });
+
+        const jsonStr = response.text;
+        const data = JSON.parse(jsonStr);
+        return data.response;
+
+    } catch (error) {
+        console.error("Error processing encounter conversation:", error);
+        return null;
     }
 };

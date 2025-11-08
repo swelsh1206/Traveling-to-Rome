@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Player, GameState, LogEntry, PlayerAction, WindowType, Inventory, Condition, PartyMember, Profession, HuntableAnimal } from '../types';
+import { Player, GameState, LogEntry, PlayerAction, WindowType, Inventory, Condition, PartyMember, Profession, HuntableAnimal, Encounter } from '../types';
 import Log from './Log';
-import CharacterPanel from './CharacterPanel';
 import ActionButton from './ActionButton';
-import { generateActionOutcome, generateRandomEvent, processEventChoice } from '../services/geminiService';
+import { generateActionOutcome, generateEncounter, processEncounterAction, processEncounterConversation } from '../services/geminiService';
 import LoadingSpinner from './LoadingSpinner';
-import { TOTAL_DISTANCE_TO_ROME, PROFESSION_STATS, ITEM_EFFECTS, CRAFTING_RECIPES, INITIAL_HEALTH, ITEM_PRICES, ROUTE_CHECKPOINTS, HUNTABLE_ANIMALS, ITEM_ICONS } from '../constants';
-import ProgressBar from './ProgressBar';
+import { TOTAL_DISTANCE_TO_ROME, PROFESSION_STATS, ITEM_EFFECTS, ITEM_DESCRIPTIONS, CRAFTING_RECIPES, INITIAL_HEALTH, ITEM_PRICES, ROUTE_CHECKPOINTS, HUNTABLE_ANIMALS, ITEM_ICONS } from '../constants';
 import ModalWindow from './ModalWindow';
 import SuppliesBar from './SuppliesBar';
+import { formatDate, advanceDate, getSeasonFromMonth, getHistoricalContext } from '../utils/dateUtils';
+import SettingsMenu from './SettingsMenu';
+import CharacterSidebar from './CharacterSidebar';
+import MapView from './MapView';
+import EncounterWindow from './EncounterWindow';
 
 interface GameUIProps {
   player: Player;
@@ -117,11 +120,8 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
   const [itemTarget, setItemTarget] = useState<PartyMember | null>(null);
   const [nextCheckpointIndex, setNextCheckpointIndex] = useState(0);
   const [huntOptions, setHuntOptions] = useState<HuntableAnimal[]>([]);
-  const [showMenu, setShowMenu] = useState(false);
-  const [randomEvent, setRandomEvent] = useState<{scenario: string} | null>(null);
-  const [eventChoice, setEventChoice] = useState('');
-  const [isProcessingEvent, setIsProcessingEvent] = useState(false);
-  const [eventOutcome, setEventOutcome] = useState<any>(null);
+  const [currentEncounter, setCurrentEncounter] = useState<Encounter | null>(null);
+  const [isProcessingEncounter, setIsProcessingEncounter] = useState(false);
 
   const addLogEntry = useCallback((message: string, color: string = 'text-white', dayOverride?: number) => {
     setLog(prevLog => [...prevLog, { day: dayOverride ?? gameState.day, message, color }]);
@@ -294,8 +294,8 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
             const injuryRoll = Math.random() * 100;
             let message = `The ${animal.name} escaped. You return with nothing. (-${staminaCost} stamina)`;
             if (injuryRoll < animal.injuryRisk) {
-                newConditions = updateConditions(newConditions, ['Injured']);
-                message = `The ${animal.name} fought back and escaped. You are now Injured. (-${staminaCost} stamina)`;
+                newConditions = updateConditions(newConditions, ['Wounded']);
+                message = `The ${animal.name} fought back and escaped. You are now Wounded. (-${staminaCost} stamina)`;
             }
             addLogEntry(message, 'text-white');
             return { ...prev, stamina: Math.max(0, prev.stamina - staminaCost), conditions: newConditions };
@@ -396,6 +396,15 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         // Only Travel advances time by 1 week
         if (action === 'Travel') {
             newState.day += 7;
+            // Advance calendar date by 7 days
+            let currentDate = { year: newState.year, month: newState.month, dayOfMonth: newState.dayOfMonth };
+            for (let i = 0; i < 7; i++) {
+                currentDate = advanceDate(currentDate.year, currentDate.month, currentDate.dayOfMonth);
+            }
+            newState.year = currentDate.year;
+            newState.month = currentDate.month;
+            newState.dayOfMonth = currentDate.dayOfMonth;
+            newState.season = getSeasonFromMonth(currentDate.month);
         }
 
         // Actions other than Travel consume stamina
@@ -425,8 +434,8 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         if (action === 'Travel') {
             distanceChange = Math.floor(distanceChange * weatherEffect.distanceModifier);
         }
-        if (newState.conditions.includes('Injured')) distanceChange *= 0.75;
-        if (newState.conditions.includes('Wagon Damaged')) distanceChange *= 0.5;
+        if (newState.conditions.includes('Wounded')) distanceChange *= 0.75;
+        if (newState.conditions.includes('Broken Wagon')) distanceChange *= 0.5;
         if (newState.oxen === 1) distanceChange *= 0.8;
         if (newState.oxen === 0) distanceChange *= 0.25;
         if (newState.oxen > 2) distanceChange *= 1.1;
@@ -483,23 +492,85 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
     setIsLoading(false);
 
-    // Check for random event after travel - show modal immediately
+    // Check for random encounter after travel
     if (action === 'Travel' && !outcome.merchant_encountered) {
-        // Show loading state immediately
-        setRandomEvent({ scenario: 'loading' });
-
-        // Generate event in background
-        const event = await generateRandomEvent(player, gameState);
-        if (event) {
-            setRandomEvent(event);
-        } else {
-            // No event generated, close modal
-            setRandomEvent(null);
+        const encounter = await generateEncounter(player, gameState);
+        if (encounter) {
+            setCurrentEncounter(encounter);
+            addLogEntry(`You encounter ${encounter.npc.name} on the road.`, 'text-cyan-300', newDay);
         }
     }
 
   }, [player, gameState, addLogEntry, isGameOver, isLoading, nextCheckpointIndex]);
-  
+
+  // Handle encounter actions
+  const handleEncounterAction = useCallback(async (action: string) => {
+    if (!currentEncounter || isProcessingEncounter) return;
+
+    setIsProcessingEncounter(true);
+
+    try {
+      const outcome = await processEncounterAction(player, gameState, currentEncounter, action);
+
+      // Apply outcome to game state
+      setGameState(prev => {
+        let newState = { ...prev };
+        newState.health = Math.max(0, Math.min(INITIAL_HEALTH, newState.health + outcome.health_change));
+        newState.food = Math.max(0, newState.food + outcome.food_change);
+        newState.money = Math.max(0, newState.money + outcome.money_change);
+        newState.oxen = Math.max(0, newState.oxen + outcome.oxen_change);
+        newState.inventory = updateInventory(newState.inventory, outcome.inventory_changes || []);
+        newState.conditions = updateConditions(newState.conditions, outcome.conditions_add || [], outcome.conditions_remove || []);
+
+        const changedParty = applyPartyChanges(newState.party, outcome.party_changes || []);
+        const { living } = checkPartyDeaths(changedParty, newState.day);
+        newState.party = living;
+
+        return newState;
+      });
+
+      addLogEntry(outcome.description, 'text-cyan-200');
+
+      // Close encounter
+      setCurrentEncounter(null);
+    } catch (error) {
+      console.error("Error processing encounter action:", error);
+      addLogEntry("Something went wrong with the encounter.", 'text-red-500');
+      setCurrentEncounter(null);
+    } finally {
+      setIsProcessingEncounter(false);
+    }
+  }, [currentEncounter, player, gameState, isProcessingEncounter, addLogEntry]);
+
+  // Handle encounter conversation
+  const handleEncounterConversation = useCallback(async (message: string) => {
+    if (!currentEncounter || isProcessingEncounter) return;
+
+    setIsProcessingEncounter(true);
+
+    try {
+      const response = await processEncounterConversation(player, gameState, currentEncounter, message);
+
+      if (response) {
+        // Update encounter with new dialogue
+        setCurrentEncounter(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            npc: {
+              ...prev.npc,
+              dialogue: [...prev.npc.dialogue, message, response]
+            }
+          };
+        });
+      }
+    } catch (error) {
+      console.error("Error processing encounter conversation:", error);
+    } finally {
+      setIsProcessingEncounter(false);
+    }
+  }, [currentEncounter, player, gameState, isProcessingEncounter]);
+
    // Daily effects from conditions for player and party
   useEffect(() => {
     // This effect runs at the start of a new day, AFTER an action is taken.
@@ -529,17 +600,17 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
             needsUpdate = true;
         }
         
-        // Sickness only has an effect while on the move.
+        // Disease only has an effect while on the move.
         if (prev.phase === 'traveling') {
-            if (prev.conditions.includes('Sick')) {
-                logMessages.push({ message: 'Your sickness saps your strength.', color: 'text-red-500' });
+            if (prev.conditions.includes('Diseased')) {
+                logMessages.push({ message: 'Your disease saps your strength.', color: 'text-red-500' });
                 newHealth -= 5;
                 needsUpdate = true;
             }
             partyAfterEffects = partyAfterEffects.map(member => {
                 let currentMember = member;
-                if (member.conditions.includes('Sick')) {
-                     logMessages.push({ message: `${member.name}'s sickness worsens.`, color: 'text-red-500' });
+                if (member.conditions.includes('Diseased')) {
+                     logMessages.push({ message: `${member.name}'s disease worsens.`, color: 'text-red-500' });
                      currentMember = { ...currentMember, health: currentMember.health - 5 };
                      needsUpdate = true;
                 }
@@ -583,31 +654,37 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
     switch(gameState.phase) {
         case 'traveling':
             return [
-                { label: '(1) Travel', action: 'Travel', key: '1' },
-                { label: '(2) Scout Ahead', action: 'Scout Ahead', key: '2' },
-                { label: '(3) Hunt', action: 'Hunt', key: '3' },
-                { label: '(4) Make Camp', action: 'Make Camp', key: '4' },
+                { label: '1 - Travel', action: 'Travel', key: '1' },
+                { label: '2 - Scout Ahead', action: 'Scout Ahead', key: '2' },
+                { label: '3 - Hunt', action: 'Hunt', key: '3' },
+                { label: '4 - Make Camp', action: 'Make Camp', key: '4' },
             ];
         case 'camp':
             const campActions = [
-                { label: '(1) Rest', action: 'Rest', key: '1' },
-                { label: '(2) Craft', action: 'Craft', key: '2' },
-                { label: '(3) Feed Party', action: 'Feed Party', key: '3' },
+                { label: '1 - Rest', action: 'Rest', key: '1' },
+                { label: '2 - Craft', action: 'Craft', key: '2' },
+                { label: '3 - Feed Party', action: 'Feed Party', key: '3' },
             ];
-            if (player.profession === Profession.Apothecary) campActions.push({ label: '(4) Forage', action: 'Forage for Herbs', key: '4' });
-            if (player.profession === Profession.Blacksmith) campActions.push({ label: '(5) Repair Wagon', action: 'Repair Wagon', key: '5' });
-            campActions.push({ label: '(6) Use Item', action: 'Use Item', key: '6' });
-            campActions.push({ label: '(7) Break Camp', action: 'Break Camp', key: '7' });
+            // Foraging professions
+            if (player.profession === Profession.Apothecary || player.profession === Profession.Herbalist || player.profession === Profession.Midwife) {
+                campActions.push({ label: '4 - Forage', action: 'Forage for Herbs', key: '4' });
+            }
+            // Repair professions
+            if (player.profession === Profession.Blacksmith) {
+                campActions.push({ label: '5 - Repair Wagon', action: 'Repair Wagon', key: '5' });
+            }
+            campActions.push({ label: '6 - Use Item', action: 'Use Item', key: '6' });
+            campActions.push({ label: '7 - Break Camp', action: 'Break Camp', key: '7' });
             return campActions;
         case 'in_city':
             return [
-                { label: '(1) Visit Market', action: 'Visit Market', key: '1' },
-                { label: '(2) Leave City', action: 'Leave City', key: '2' },
+                { label: '1 - Visit Market', action: 'Visit Market', key: '1' },
+                { label: '2 - Leave City', action: 'Leave City', key: '2' },
             ];
         case 'merchant_encounter':
              return [
-                { label: '(1) Trade', action: 'Trade with Merchant', key: '1' },
-                { label: '(2) Continue Journey', action: 'Ignore Merchant', key: '2' },
+                { label: '1 - Trade', action: 'Trade with Merchant', key: '1' },
+                { label: '2 - Continue Journey', action: 'Ignore Merchant', key: '2' },
             ];
         default: return [];
     }
@@ -686,6 +763,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                     {inventoryItems.length > 0 ? (
                         inventoryItems.map(([item, quantity]) => {
                             const effect = ITEM_EFFECTS[item];
+                            const description = ITEM_DESCRIPTIONS[item];
                             const icon = ITEM_ICONS[item] || '📦';
                             return (
                                 <div key={item} className="bg-stone-700/30 p-3 rounded-lg border border-amber-600/20">
@@ -693,7 +771,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                                         <div className="flex items-center gap-2">
                                             <span className="text-2xl">{icon}</span>
                                             <div>
-                                                <div className="text-amber-200 font-bold">{item}</div>
+                                                <div className="text-amber-200 font-bold text-base">{item}</div>
                                                 <div className="text-sm text-gray-400">Quantity: {quantity}</div>
                                             </div>
                                         </div>
@@ -706,15 +784,18 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                                             </button>
                                         )}
                                     </div>
+                                    {description && (
+                                        <p className="text-sm text-gray-300 italic">{description}</p>
+                                    )}
                                     {effect && (
-                                        <p className="text-xs text-gray-300 italic">{effect.description}</p>
+                                        <p className="text-xs text-amber-400 mt-1">Effect: {effect.description}</p>
                                     )}
                                 </div>
                             )
                         })
                     ) : (
                         <div className="text-center py-8">
-                            <p className="text-gray-400 italic">Your bags are empty.</p>
+                            <p className="text-gray-400 italic text-base">Your bags are empty.</p>
                         </div>
                     )}
                 </div>
@@ -871,7 +952,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
             </div>
         );
         case 'Market':
-            const merchantBonus = player.profession === Profession.Merchant ? 0.15 : 0;
+            const merchantBonus = (player.profession === Profession.Merchant || player.profession === Profession.Merchant_F) ? 0.15 : 0;
             const priceModifier = gameState.phase === 'merchant_encounter' ? 1.25 : 1; // Merchants on the road are more expensive
             const buyModifier = (1 - merchantBonus) * priceModifier;
             const sellModifier = (1 + merchantBonus) / priceModifier;
@@ -937,6 +1018,110 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                     </ul>
                 </div>
             )
+        case 'References':
+            return (
+                <div className="space-y-6 text-sm">
+                    <div className="bg-stone-700/30 p-4 rounded-lg border border-amber-600/20">
+                        <h3 className="text-lg text-amber-200 font-bold mb-2">Primary Sources & Historical References</h3>
+                        <p className="text-gray-300 text-xs italic mb-3">
+                            This game is set in 1640 during the Thirty Years' War (1618-1648). It draws upon authentic Early Modern sources to recreate the perilous journey from France to Rome through war-torn Europe.
+                        </p>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="bg-red-900/20 p-3 rounded-lg border border-red-600/30">
+                            <h4 className="text-red-300 font-bold mb-2">⚔️ The Thirty Years' War (1618-1648)</h4>
+                            <p className="text-gray-300 text-xs mb-2">
+                                One of the most devastating conflicts in European history. By 1640, central Europe had endured 22 years of continuous warfare, famine, and plague.
+                            </p>
+                            <ul className="text-gray-400 text-xs space-y-2">
+                                <li><span className="text-amber-300 font-semibold">Simplicius Simplicissimus</span> (1668) by Hans Jakob Christoffel von Grimmelshausen - Picaresque novel based on the author's experiences as a soldier; vivid descriptions of war's devastation on civilians</li>
+                                <li><span className="text-amber-300 font-semibold">Les Misères et les Malheurs de la Guerre</span> (1633) by Jacques Callot - Series of etchings depicting the brutal realities of the Thirty Years' War</li>
+                                <li><span className="text-amber-300 font-semibold">Contemporary Chronicles</span> - Numerous diaries, letters, and municipal records documenting pillaging, disease, starvation, and population collapse</li>
+                                <li><span className="text-amber-300 font-semibold">Parish Records</span> - Show population declines of 25-40% across affected regions between 1618-1648</li>
+                            </ul>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-200 font-bold mb-2">Early Modern Travel Accounts</h4>
+                            <ul className="text-gray-400 text-xs space-y-2">
+                                <li><span className="text-amber-300 font-semibold">An Itinerary</span> (1617) by Fynes Moryson - Englishman's detailed 10-year journey through Europe, including practical advice on routes, inns, costs, and dangers</li>
+                                <li><span className="text-amber-300 font-semibold">Coryat's Crudities</span> (1611) by Thomas Coryat - Travel account through France, Italy, and Germany with observations on customs, food, and accommodations</li>
+                                <li><span className="text-amber-300 font-semibold">A Relation of a Journey</span> (1615) by George Sandys - Account of travels through the Ottoman Empire and Europe</li>
+                                <li><span className="text-amber-300 font-semibold">Journal de Voyage</span> (1580-1581) by Michel de Montaigne - French philosopher's travel journal through France, Switzerland, Germany, and Italy</li>
+                                <li><span className="text-amber-300 font-semibold">Roma Sotterranea</span> (1632) by Antonio Bosio - Guide to Rome's catacombs and early Christian sites, popular with 17th century pilgrims</li>
+                            </ul>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-200 font-bold mb-2">17th Century Military Manuals</h4>
+                            <ul className="text-gray-400 text-xs space-y-2">
+                                <li><span className="text-amber-300 font-semibold">The Swedish Discipline</span> (1632) - Translated manuals of Gustavus Adolphus's revolutionary military reforms used during the Thirty Years' War</li>
+                                <li><span className="text-amber-300 font-semibold">The Compleat Souldier</span> (1639) by Thomas Venn - English military manual covering tactics, equipment, and soldier's life</li>
+                                <li><span className="text-amber-300 font-semibold">L'Art Militaire pour l'Infanterie</span> (1615) by Jacob de Gheyn - Illustrated drill manual widely used in European armies</li>
+                                <li><span className="text-amber-300 font-semibold">Military Instructions for the Cavallrie</span> (1632) by John Cruso - Cavalry tactics and training</li>
+                            </ul>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-200 font-bold mb-2">Trade, Commerce & Prices (17th Century)</h4>
+                            <ul className="text-gray-400 text-xs space-y-2">
+                                <li><span className="text-amber-300 font-semibold">Le Parfait Négociant</span> (1675) by Jacques Savary - Comprehensive merchant's handbook (slightly post-1640 but reflects earlier practices)</li>
+                                <li><span className="text-amber-300 font-semibold">Merchant Account Books</span> - Archives from Lyon, Florence, Venice, and Paris documenting prices, exchange rates, and trade goods 1600-1650</li>
+                                <li><span className="text-amber-300 font-semibold">Market Price Lists</span> (Mercuriales) - Weekly price records from major cities showing commodity costs, affected by war and harvest failures</li>
+                                <li><span className="text-amber-300 font-semibold">Guild Regulations</span> - 17th century ordinances governing craftsmen, blacksmiths, apothecaries, and merchants</li>
+                            </ul>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-200 font-bold mb-2">Medicine, Plague & Health (1600s)</h4>
+                            <ul className="text-gray-400 text-xs space-y-2">
+                                <li><span className="text-amber-300 font-semibold">Plague Treatises</span> - Numerous 17th century texts on identifying and treating plague, which killed millions during this period</li>
+                                <li><span className="text-amber-300 font-semibold">Opera Medica</span> (1644) by Daniel Sennert - Comprehensive medical textbook used widely in 1640s</li>
+                                <li><span className="text-amber-300 font-semibold">Pharmacopoeia</span> - Various European pharmacopeias (Paris 1638, London 1618) listing medicinal compounds and herbal remedies</li>
+                                <li><span className="text-amber-300 font-semibold">The Surgion's Mate</span> (1617) by John Woodall - Practical medical guide for treating wounds, common in an era of constant warfare</li>
+                                <li><span className="text-amber-300 font-semibold">Herbals</span> - John Gerard's Herball (1597), John Parkinson's Theatrum Botanicum (1640) - comprehensive guides to medicinal plants</li>
+                            </ul>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-200 font-bold mb-2">Religious Context: Counter-Reformation</h4>
+                            <ul className="text-gray-400 text-xs space-y-2">
+                                <li><span className="text-amber-300 font-semibold">The Council of Trent</span> (1545-1563) - Catholic Church reforms shaping 17th century religious practice and pilgrimage</li>
+                                <li><span className="text-amber-300 font-semibold">Spiritual Exercises</span> (1548) by Ignatius of Loyola - Jesuit devotional text influencing Catholic spirituality</li>
+                                <li><span className="text-amber-300 font-semibold">Pilgrimage Guidebooks</span> - Various 17th century guides to Roman basilicas, relics, and indulgences available to pilgrims</li>
+                                <li><span className="text-amber-300 font-semibold">Roma Sancta</span> (1581) by Gregory Martin - English Catholic's guide to Rome's holy sites</li>
+                            </ul>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-200 font-bold mb-2">Daily Life & Survival (Early Modern)</h4>
+                            <ul className="text-gray-400 text-xs space-y-2">
+                                <li><span className="text-amber-300 font-semibold">Maison Rustique</span> (1600) by Charles Estienne & Jean Liébault - Country house management, food preservation, hunting</li>
+                                <li><span className="text-amber-300 font-semibold">Le Cuisinier François</span> (1651) by François Pierre La Varenne - Reflects 17th century French cuisine and food practices</li>
+                                <li><span className="text-amber-300 font-semibold">La Vénerie</span> (1644) by Robert de Salnove - Hunting manual for game animals in France</li>
+                                <li><span className="text-amber-300 font-semibold">Weather Records</span> - 17th century observations showing the "Little Ice Age" climate with harsh winters and crop failures</li>
+                            </ul>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-200 font-bold mb-2">Historical Context: Game Mechanics</h4>
+                            <p className="text-gray-300 text-xs mb-2">
+                                Game mechanics are grounded in documented 17th century realities:
+                            </p>
+                            <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                                <li>Travel speeds: 25-35 km/day on foot typical for 17th century travelers (per Moryson's Itinerary)</li>
+                                <li>Food costs: Bread prices 1635-1645 from French mercuriales; war inflation affects markets</li>
+                                <li>Plague outbreaks: Major epidemics documented 1629-1631, 1636-1640 across affected regions</li>
+                                <li>Banditry: Deserters and disbanded soldiers turned brigands; documented in letters and trial records</li>
+                                <li>Weather: "Little Ice Age" period (1550-1850) with colder, wetter conditions than today</li>
+                                <li>War zones: 1640 saw active combat in German states, Spanish Netherlands, France-Spain border</li>
+                                <li>Mortality: Contemporary sources estimate 4-8 million deaths in German states alone by 1640</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            );
         default: return null;
     }
   };
@@ -964,37 +1149,36 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
       <div className="absolute inset-0 bg-cover bg-center transition-all duration-500" style={{backgroundImage: "url('/background.jpg')", filter: (isCamp || isCity) ? 'brightness(0.5)' : 'brightness(1)'}}></div>
       <div className={`pointer-events-none fixed inset-0 z-50 ${gameState.health < 25 ? 'animate-pulse-red' : ''}`}></div>
 
-      {/* Settings Gear Button */}
-      <button
-        onClick={() => setShowMenu(true)}
-        className="fixed top-4 right-4 z-50 p-2 bg-stone-800/90 border-2 border-amber-500 rounded-full hover:bg-stone-700 hover:border-amber-400 transition-all shadow-lg hover:scale-110"
-        aria-label="Open menu"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      </button>
+      <SettingsMenu onRestartRun={onRestartRun} />
 
-      <div className="grid grid-cols-5 gap-6 h-[90vh] max-h-[800px] relative z-10">
-        
-        <div className={`col-span-4 flex flex-col space-y-4 bg-gradient-to-b from-stone-800/80 to-stone-900/80 p-4 border-2 ${borderColor} shadow-2xl transition-all duration-500 relative z-20 rounded-xl`}>
-           <ProgressBar
-              progress={(gameState.distanceTraveled / TOTAL_DISTANCE_TO_ROME) * 100}
-              checkpoints={ROUTE_CHECKPOINTS}
-              totalDistance={TOTAL_DISTANCE_TO_ROME}
-              phase={gameState.phase}
+      <div className="flex h-[95vh] max-h-[900px] relative z-10">
+
+        <div className={`flex-grow flex flex-col space-y-4 bg-gradient-to-b from-stone-800/80 to-stone-900/80 p-4 border-2 ${borderColor} shadow-2xl transition-all duration-500 relative z-20 rounded-xl`}>
+           <MapView distanceTraveled={gameState.distanceTraveled} phase={gameState.phase} />
+           <SuppliesBar
+             phase={gameState.phase}
+             health={gameState.health}
+             stamina={gameState.stamina}
+             food={gameState.food}
+             money={gameState.money}
+             oxen={gameState.oxen}
+             location={gameState.currentLocation}
+             rationLevel={gameState.rationLevel}
+             onRationChange={(level) => setGameState({ ...gameState, rationLevel: level })}
            />
-           <SuppliesBar phase={gameState.phase} health={gameState.health} stamina={gameState.stamina} food={gameState.food} money={gameState.money} oxen={gameState.oxen} location={gameState.currentLocation} />
           <div className="flex-grow flex flex-col min-h-0">
             <div className="flex-grow mb-4 min-h-0 max-h-[45vh] h-full">
               <Log log={log} />
             </div>
             <div className={`flex-shrink-0 min-h-32 flex flex-col items-center justify-center p-4 border-t-2 ${isCity ? 'border-purple-600/50' : isCamp ? 'border-sky-600/50' : 'border-amber-600/50'}`}>
-              {/* Day Display */}
+              {/* Date Display */}
               <div className="mb-3 text-center">
-                <span className="text-sm text-gray-400">Day </span>
-                <span className={`text-3xl font-bold ${isCity ? 'text-purple-300' : isCamp ? 'text-sky-300' : 'text-amber-300'} text-shadow-glow`}>{gameState.day}</span>
+                <div className={`text-2xl font-bold ${isCity ? 'text-purple-300' : isCamp ? 'text-sky-300' : 'text-amber-300'} text-shadow-glow`}>
+                  {formatDate(gameState.dayOfMonth, gameState.month, gameState.year)}
+                </div>
+                <div className="text-xs text-gray-400 mt-1 italic">
+                  {getHistoricalContext(gameState.year)}
+                </div>
               </div>
 
               {isLoading && (
@@ -1035,9 +1219,14 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
           </div>
         </div>
 
-        <div className="col-span-1 flex flex-col space-y-4 relative z-20">
-          <CharacterPanel player={player} imageUrl={characterImageUrl} gameState={gameState} onOpenWindow={setActiveWindow} />
-        </div>
+        {/* Character Sidebar */}
+        <CharacterSidebar
+          player={player}
+          gameState={gameState}
+          characterImageUrl={characterImageUrl}
+          onUseItem={handleUseItem}
+          onOpenInventoryForTarget={handleOpenInventoryForTarget}
+        />
       </div>
       {activeWindow && (
         <ModalWindow title={getModalTitle()} onClose={() => {setActiveWindow(null); setItemTarget(null);}}>
@@ -1045,185 +1234,15 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         </ModalWindow>
       )}
 
-      {/* Menu Modal */}
-      {showMenu && (
-        <ModalWindow title="Menu" onClose={() => setShowMenu(false)}>
-          <div className="space-y-4">
-            <button
-              onClick={() => {
-                if (onRestartRun && window.confirm('Are you sure you want to restart? All progress will be lost.')) {
-                  onRestartRun();
-                }
-              }}
-              className="w-full px-6 py-3 bg-red-600/20 border-2 border-red-500 text-red-400 hover:bg-red-600/40 hover:border-red-400 transition-colors rounded-lg text-lg font-bold"
-            >
-              Restart Run
-            </button>
-            <button
-              onClick={() => setShowMenu(false)}
-              className="w-full px-6 py-3 bg-stone-700/80 border-2 border-amber-500 text-amber-400 hover:bg-stone-600 hover:border-amber-400 transition-colors rounded-lg text-lg"
-            >
-              Resume Game
-            </button>
-          </div>
-        </ModalWindow>
-      )}
-
-      {/* Random Event Modal */}
-      {randomEvent && (
-        <ModalWindow title="⚠️ An Event Occurs" onClose={() => false} hideCloseButton={true}>
-          <div className="space-y-4">
-            <div className="bg-amber-900/30 border-l-4 border-amber-500 p-4 rounded">
-              {randomEvent.scenario === 'loading' ? (
-                <div className="text-gray-200 text-lg leading-relaxed flex items-center justify-center gap-3 py-4">
-                  <span className="text-2xl animate-spin">⚔️</span>
-                  <span>Something stirs on the road ahead...</span>
-                </div>
-              ) : (
-                <p className="text-gray-200 text-lg leading-relaxed">{randomEvent.scenario}</p>
-              )}
-            </div>
-
-            {!eventOutcome && randomEvent.scenario !== 'loading' && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-amber-300 text-sm font-bold">Your Response:</label>
-                  <textarea
-                    value={eventChoice}
-                    onChange={(e) => setEventChoice(e.target.value)}
-                    placeholder="Type your response here..."
-                    className="w-full h-32 p-3 bg-stone-800 border-2 border-amber-500 text-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder-gray-500 resize-none"
-                    disabled={isProcessingEvent}
-                    autoFocus
-                  />
-                </div>
-
-                <button
-                  onClick={async () => {
-                    if (!eventChoice.trim()) return;
-                    setIsProcessingEvent(true);
-
-                    const outcome = await processEventChoice(player, gameState, randomEvent.scenario, eventChoice);
-                    setEventOutcome(outcome);
-
-                    // Apply outcome to game state
-                    setGameState(prev => {
-                      let newState = { ...prev };
-                      newState.health = Math.max(0, Math.min(100, newState.health + outcome.health_change));
-                      newState.food = Math.max(0, newState.food + outcome.food_change);
-                      newState.money = Math.max(0, newState.money + outcome.money_change);
-                      newState.oxen = Math.max(0, newState.oxen + outcome.oxen_change);
-                      newState.inventory = updateInventory(newState.inventory, outcome.inventory_changes || []);
-                      newState.conditions = updateConditions(newState.conditions, outcome.conditions_add, outcome.conditions_remove);
-
-                      const changedParty = applyPartyChanges(newState.party, outcome.party_changes || []);
-                      const { living } = checkPartyDeaths(changedParty, newState.day);
-                      newState.party = living;
-
-                      return newState;
-                    });
-
-                    addLogEntry(outcome.description, 'text-cyan-300');
-                    setIsProcessingEvent(false);
-                  }}
-                  disabled={!eventChoice.trim() || isProcessingEvent}
-                  className="w-full px-6 py-3 bg-amber-600 border-2 border-amber-400 text-stone-900 hover:bg-amber-500 hover:scale-105 disabled:bg-gray-600 disabled:border-gray-500 disabled:text-gray-400 disabled:cursor-not-allowed disabled:scale-100 transition-all rounded-lg text-lg font-bold shadow-lg"
-                >
-                  {isProcessingEvent ? '⏳ Processing...' : '✓ Submit Choice'}
-                </button>
-              </>
-            )}
-
-            {eventOutcome && (
-              <>
-                <div className="bg-stone-900/50 border-2 border-cyan-500 p-4 rounded-lg space-y-3 animate-fade-in">
-                  <h3 className="text-cyan-300 font-bold text-xl">Outcome:</h3>
-                  <p className="text-gray-200 text-lg leading-relaxed">{eventOutcome.description}</p>
-
-                  <div className="border-t border-cyan-500/30 pt-3 space-y-2">
-                    <h4 className="text-cyan-400 font-semibold">Effects:</h4>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      {eventOutcome.health_change !== 0 && (
-                        <div className={`flex items-center gap-2 ${eventOutcome.health_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          <span>❤️ Health:</span>
-                          <span className="font-bold">{eventOutcome.health_change > 0 ? '+' : ''}{eventOutcome.health_change}</span>
-                        </div>
-                      )}
-                      {eventOutcome.food_change !== 0 && (
-                        <div className={`flex items-center gap-2 ${eventOutcome.food_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          <span>🥖 Food:</span>
-                          <span className="font-bold">{eventOutcome.food_change > 0 ? '+' : ''}{eventOutcome.food_change}</span>
-                        </div>
-                      )}
-                      {eventOutcome.money_change !== 0 && (
-                        <div className={`flex items-center gap-2 ${eventOutcome.money_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          <span>💰 Money:</span>
-                          <span className="font-bold">{eventOutcome.money_change > 0 ? '+' : ''}{eventOutcome.money_change}</span>
-                        </div>
-                      )}
-                      {eventOutcome.oxen_change !== 0 && (
-                        <div className={`flex items-center gap-2 ${eventOutcome.oxen_change > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          <span>🐂 Oxen:</span>
-                          <span className="font-bold">{eventOutcome.oxen_change > 0 ? '+' : ''}{eventOutcome.oxen_change}</span>
-                        </div>
-                      )}
-                      {eventOutcome.conditions_add && eventOutcome.conditions_add.length > 0 && (
-                        <div className="col-span-2 flex items-center gap-2 text-red-400">
-                          <span>⚠️ Conditions:</span>
-                          <span className="font-bold">{eventOutcome.conditions_add.join(', ')}</span>
-                        </div>
-                      )}
-                      {eventOutcome.conditions_remove && eventOutcome.conditions_remove.length > 0 && (
-                        <div className="col-span-2 flex items-center gap-2 text-green-400">
-                          <span>✓ Removed:</span>
-                          <span className="font-bold">{eventOutcome.conditions_remove.join(', ')}</span>
-                        </div>
-                      )}
-                      {eventOutcome.inventory_changes && eventOutcome.inventory_changes.length > 0 && (
-                        <div className="col-span-2 flex flex-col gap-1 text-cyan-300">
-                          <span>📦 Inventory:</span>
-                          {eventOutcome.inventory_changes.map((change: any, i: number) => (
-                            <span key={i} className="font-bold ml-4">
-                              {change.change > 0 ? '+' : ''}{change.change} {change.item}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {eventOutcome.party_changes && eventOutcome.party_changes.length > 0 && (
-                        <div className="col-span-2 flex flex-col gap-1 text-orange-300">
-                          <span>👥 Party:</span>
-                          {eventOutcome.party_changes.map((change: any, i: number) => (
-                            <span key={i} className="font-bold ml-4">
-                              {change.name}: {change.health_change > 0 ? '+' : ''}{change.health_change || 0} health
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    {eventOutcome.health_change === 0 && eventOutcome.food_change === 0 &&
-                     eventOutcome.money_change === 0 && eventOutcome.oxen_change === 0 &&
-                     (!eventOutcome.conditions_add || eventOutcome.conditions_add.length === 0) &&
-                     (!eventOutcome.inventory_changes || eventOutcome.inventory_changes.length === 0) &&
-                     (!eventOutcome.party_changes || eventOutcome.party_changes.length === 0) && (
-                      <div className="text-gray-400 italic text-sm">No significant effects</div>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setRandomEvent(null);
-                    setEventChoice('');
-                    setEventOutcome(null);
-                  }}
-                  className="w-full px-6 py-3 bg-cyan-600 border-2 border-cyan-400 text-stone-900 hover:bg-cyan-500 hover:scale-105 transition-all rounded-lg text-lg font-bold shadow-lg"
-                >
-                  Continue Journey
-                </button>
-              </>
-            )}
-          </div>
-        </ModalWindow>
+      {/* Encounter Window */}
+      {currentEncounter && (
+        <EncounterWindow
+          encounter={currentEncounter}
+          onAction={handleEncounterAction}
+          onConversation={handleEncounterConversation}
+          onClose={() => setCurrentEncounter(null)}
+          isProcessing={isProcessingEncounter}
+        />
       )}
     </>
   );

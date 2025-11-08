@@ -4,11 +4,12 @@ import StartScreen from './components/StartScreen';
 import CharacterCreationScreen from './components/CharacterCreationScreen';
 import GameUI from './components/GameUI';
 import EndScreen from './components/EndScreen';
-import { Player, GameState, Profession, PartyMember } from './types';
+import { Player, GameState, Profession, PartyMember, Gender } from './types';
 import { PROFESSION_STATS, PROFESSION_EQUIPMENT, PROFESSION_SKILLS, TOTAL_DISTANCE_TO_ROME, INITIAL_HEALTH, INITIAL_STAMINA, FRENCH_MALE_NAMES, FRENCH_FEMALE_NAMES, FRENCH_LAST_NAMES } from './constants';
 import { generateCharacterImage } from './services/geminiService';
+import { generateRandomStartDate, getSeasonFromMonth } from './utils/dateUtils';
 
-type GameScreen = 'start' | 'create' | 'game' | 'end';
+type GameScreen = 'start' | 'create-random' | 'create-custom' | 'game' | 'end';
 
 const getRandomItem = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
 
@@ -20,22 +21,59 @@ function App() {
   const [endMessage, setEndMessage] = useState({ message: '', victory: false });
   const [isCreating, setIsCreating] = useState(false);
 
-  const handleStart = () => {
-    setScreen('create');
+  const handleRandomStart = () => {
+    setScreen('create-random');
   };
 
-  const handleCharacterCreate = async (name: string, profession: Profession) => {
+  const handleCustomStart = () => {
+    setScreen('create-custom');
+  };
+
+  const handleCharacterCreate = async (name: string, profession: Profession, gender: Gender) => {
     try {
       setIsCreating(true);
       const stats = PROFESSION_STATS[profession];
-      const newPlayer: Player = { name, profession, stats };
+
+      // Generate player attributes
+      const age = 25 + Math.floor(Math.random() * 20); // 25-44 years old
+      const religion = 'Catholic'; // Default for France in this period
+      const socialClass = profession === 'Royal' || profession === 'Noble Woman'
+        ? 'High Nobility'
+        : profession === 'Merchant' || profession === 'Merchant_F'
+        ? 'Merchant Class'
+        : profession === 'Soldier' || profession === 'Blacksmith'
+        ? 'Craftsman'
+        : 'Craftsman';
+
+      const pilgrimageReasons = ['Seeking Salvation', 'Penance for Sins', 'Cure for Illness', 'Political Refuge', 'Trade Opportunity', 'Scholarly Research', 'Family Vow', 'Escaping Persecution'] as const;
+      const pilgrimageReason = getRandomItem(pilgrimageReasons as any);
+
+      const reputation = 50; // Start neutral
+      const languages = ['French', 'Latin']; // Common for educated pilgrims
+
+      const newPlayer: Player = {
+        name,
+        profession,
+        stats,
+        gender,
+        age,
+        religion,
+        socialClass,
+        pilgrimageReason,
+        startingCity: 'Paris', // Will be set from character generation
+        reputation,
+        languages,
+        background: stats.description
+      };
 
       // Create a family with personality traits
       const traits = ['brave', 'cautious', 'optimistic', 'pessimistic', 'faithful', 'pragmatic', 'protective', 'independent'];
       const lastName = getRandomItem(FRENCH_LAST_NAMES);
 
+      // Create appropriate spouse based on player's gender
+      const spouseNames = gender === 'Male' ? FRENCH_FEMALE_NAMES : FRENCH_MALE_NAMES;
       const spouse: PartyMember = {
-        name: getRandomItem(FRENCH_FEMALE_NAMES) + ' ' + lastName,
+        name: getRandomItem(spouseNames) + ' ' + lastName,
         role: 'spouse',
         health: INITIAL_HEALTH,
         conditions: [],
@@ -45,8 +83,11 @@ function App() {
         personalityTrait: getRandomItem(traits)
       };
 
+      // Random child gender
+      const childGender = Math.random() > 0.5 ? 'Male' : 'Female';
+      const childNames = childGender === 'Male' ? FRENCH_MALE_NAMES : FRENCH_FEMALE_NAMES;
       const child: PartyMember = {
-        name: getRandomItem(FRENCH_MALE_NAMES) + ' ' + lastName,
+        name: getRandomItem(childNames) + ' ' + lastName,
         role: 'child',
         health: INITIAL_HEALTH,
         conditions: [],
@@ -58,8 +99,15 @@ function App() {
 
       const party = [spouse, child];
 
+      // Generate random start date in Early Modern period (1450-1650)
+      const startDate = generateRandomStartDate();
+      const startSeason = getSeasonFromMonth(startDate.month);
+
       const newGameState: GameState = {
         day: 1,
+        year: startDate.year,
+        month: startDate.month,
+        dayOfMonth: startDate.dayOfMonth,
         distanceTraveled: 0,
         distanceToRome: TOTAL_DISTANCE_TO_ROME,
         health: INITIAL_HEALTH,
@@ -73,9 +121,10 @@ function App() {
         party: party,
         currentLocation: null,
         weather: 'Clear',
-        season: 'Spring', // Journey starts in Spring 1640
+        season: startSeason,
         equipment: { ...PROFESSION_EQUIPMENT[profession] },
         skills: { ...PROFESSION_SKILLS[profession] },
+        rationLevel: 'normal', // Default to normal rations
       };
 
       setPlayer(newPlayer);
@@ -114,9 +163,11 @@ function App() {
   const renderScreen = () => {
     switch (screen) {
       case 'start':
-        return <StartScreen onStart={handleStart} />;
-      case 'create':
-        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} />;
+        return <StartScreen onRandomStart={handleRandomStart} onCustomStart={handleCustomStart} />;
+      case 'create-random':
+        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="random" />;
+      case 'create-custom':
+        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="custom" />;
       case 'game':
         if (player && gameState) {
           return <GameUI player={player} initialGameState={gameState} characterImageUrl={characterImageUrl} onGameEnd={handleGameEnd} onRestartRun={handleRestart} />;
@@ -125,7 +176,7 @@ function App() {
       case 'end':
         return <EndScreen message={endMessage.message} victory={endMessage.victory} onRestart={handleRestart} />;
       default:
-        return <StartScreen onStart={handleStart} />;
+        return <StartScreen onRandomStart={handleRandomStart} onCustomStart={handleCustomStart} />;
     }
   };
 
