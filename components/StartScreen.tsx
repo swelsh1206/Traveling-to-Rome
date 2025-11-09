@@ -1,13 +1,28 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import ActionButton from './ActionButton';
 
 interface StartScreenProps {
   onRandomStart: () => void;
   onCustomStart: () => void;
+  onDevModeChange?: (enabled: boolean) => void;
 }
 
-const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart }) => {
+const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart, onDevModeChange }) => {
+  const [devPassword, setDevPassword] = useState('');
+  const [devModeEnabled, setDevModeEnabled] = useState(false);
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase();
+    setDevPassword(value);
+    if (value === 'SEANW') {
+      setDevModeEnabled(true);
+      onDevModeChange?.(true);
+    } else {
+      setDevModeEnabled(false);
+      onDevModeChange?.(false);
+    }
+  };
   return (
     <div className="bg-stone-800/80 p-10 border-4 border-amber-500 shadow-lg text-center backdrop-blur-sm rounded-xl max-w-4xl mx-auto">
       <h1 className="text-6xl text-amber-300 mb-4 tracking-wider font-bold">Le Chemin de Rome</h1>
@@ -65,6 +80,22 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart 
       <p className="text-xs text-gray-500 mt-6">
         Manage your resources • Endure hardships • Survive the journey
       </p>
+
+      {/* DEV MODE Password Input */}
+      <div className="absolute bottom-4 right-4">
+        <div className="flex items-center gap-2">
+          <input
+            type="password"
+            value={devPassword}
+            onChange={handlePasswordChange}
+            placeholder="DEV"
+            className="w-16 px-2 py-1 bg-stone-900/50 border border-stone-600 rounded text-xs text-gray-400 focus:outline-none focus:border-amber-500"
+          />
+          {devModeEnabled && (
+            <span className="text-xs text-green-400 font-bold">✓ DEV</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

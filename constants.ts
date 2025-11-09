@@ -321,6 +321,7 @@ export const ITEM_ICONS: Record<string, string> = {
     'Leather Boots': '🥾',
     'Field Provisions': '🎒',
     'Iron Rations': '📦',
+    'Bread Loaf': '🍞',
     'Fine Silks': '🧵',
     'Spices': '🌶️',
     'Scrap Metal': '🔩',
@@ -365,6 +366,7 @@ export const ITEM_DESCRIPTIONS: Record<string, string> = {
     'Leather Boots': "Well-crafted boots that protect feet during long marches.",
     'Field Provisions': "Complete military rations. Designed to sustain soldiers on campaign.",
     'Iron Rations': "Hardtack, dried meat, and preserved foods. Military-grade sustenance.",
+    'Bread Loaf': "Fresh-baked bread, still warm. The most basic and satisfying of foods.",
 
     // Trade goods
     'Fine Silks': "Luxurious silk fabrics from the East. Valuable trade commodity worth good coin.",
@@ -405,15 +407,15 @@ export const ITEM_DESCRIPTIONS: Record<string, string> = {
 export const ITEM_EFFECTS: Record<string, { description: string; removesCondition?: string, health_change?: number }> = {
     'Bandages': {
         description: "Treats wounds and stops bleeding.",
-        removesCondition: 'Injured',
+        removesCondition: 'Wounded',
     },
     'Medicinal Herbs': {
         description: "Raw herbs to fight infection and sickness.",
-        removesCondition: 'Sick',
+        removesCondition: 'Diseased',
     },
     'Healing Poultice': {
         description: "A powerful remedy that treats both wounds and illness.",
-        removesCondition: 'Sick',
+        removesCondition: 'Diseased',
         health_change: 15,
     },
     'Jerky': {
@@ -452,7 +454,7 @@ export const ITEM_EFFECTS: Record<string, { description: string; removesConditio
     },
     'Wagon Repair Kit': {
         description: "Everything needed to repair a damaged axle or wheel.",
-        removesCondition: 'Wagon Damaged',
+        removesCondition: 'Broken Wagon',
     },
     'Warm Clothing': {
         description: "Protects against cold weather conditions.",
@@ -464,11 +466,18 @@ export const ITEM_EFFECTS: Record<string, { description: string; removesConditio
     },
     'Field Provisions': {
         description: "Soldier's rations. Very filling and restorative.",
+        removesCondition: 'Starving',
         health_change: 8,
     },
     'Iron Rations': {
         description: "Military-grade preserved food. Very restorative.",
+        removesCondition: 'Starving',
         health_change: 6,
+    },
+    'Bread Loaf': {
+        description: "Fresh bread that fills the belly and cures hunger.",
+        removesCondition: 'Starving',
+        health_change: 5,
     },
 };
 
@@ -651,21 +660,21 @@ export const PROFESSION_EQUIPMENT: Record<Profession, { weapon?: string; armor?:
 };
 
 // Starting skills by profession
-export const PROFESSION_SKILLS: Record<Profession, { combat: number; survival: number; persuasion: number; medicine: number }> = {
-  [Profession.Merchant]: { combat: 10, survival: 15, persuasion: 35, medicine: 10 },
-  [Profession.Priest]: { combat: 5, survival: 10, persuasion: 30, medicine: 25 },
-  [Profession.Soldier]: { combat: 40, survival: 25, persuasion: 10, medicine: 15 },
-  [Profession.Blacksmith]: { combat: 25, survival: 20, persuasion: 15, medicine: 10 },
-  [Profession.Scholar]: { combat: 5, survival: 10, persuasion: 25, medicine: 20 },
-  [Profession.Apothecary]: { combat: 10, survival: 20, persuasion: 15, medicine: 40 },
-  [Profession.Royal]: { combat: 20, survival: 10, persuasion: 35, medicine: 15 },
+export const PROFESSION_SKILLS: Record<Profession, Skills> = {
+  [Profession.Merchant]: { combat: 15, diplomacy: 40, survival: 20, medicine: 10, stealth: 30, knowledge: 25 },
+  [Profession.Priest]: { combat: 5, diplomacy: 35, survival: 15, medicine: 30, stealth: 10, knowledge: 45 },
+  [Profession.Soldier]: { combat: 50, diplomacy: 15, survival: 35, medicine: 20, stealth: 25, knowledge: 10 },
+  [Profession.Blacksmith]: { combat: 35, diplomacy: 20, survival: 30, medicine: 15, stealth: 15, knowledge: 15 },
+  [Profession.Scholar]: { combat: 8, diplomacy: 30, survival: 12, medicine: 25, stealth: 15, knowledge: 50 },
+  [Profession.Apothecary]: { combat: 12, diplomacy: 20, survival: 25, medicine: 50, stealth: 18, knowledge: 35 },
+  [Profession.Royal]: { combat: 25, diplomacy: 50, survival: 15, medicine: 20, stealth: 10, knowledge: 40 },
   // Female professions
-  [Profession.Nun]: { combat: 2, survival: 12, persuasion: 28, medicine: 30 },
-  [Profession.Midwife]: { combat: 5, survival: 15, persuasion: 20, medicine: 45 },
-  [Profession.Herbalist]: { combat: 8, survival: 25, persuasion: 18, medicine: 38 },
-  [Profession.NobleWoman]: { combat: 5, survival: 8, persuasion: 40, medicine: 18 },
-  [Profession.Merchant_F]: { combat: 8, survival: 14, persuasion: 38, medicine: 12 },
-  [Profession.Scholar_F]: { combat: 3, survival: 8, persuasion: 30, medicine: 22 },
+  [Profession.Nun]: { combat: 5, diplomacy: 40, survival: 18, medicine: 35, stealth: 12, knowledge: 45 },
+  [Profession.Midwife]: { combat: 8, diplomacy: 25, survival: 22, medicine: 50, stealth: 15, knowledge: 30 },
+  [Profession.Herbalist]: { combat: 10, diplomacy: 20, survival: 35, medicine: 45, stealth: 25, knowledge: 30 },
+  [Profession.NobleWoman]: { combat: 5, diplomacy: 50, survival: 10, medicine: 22, stealth: 13, knowledge: 42 },
+  [Profession.Merchant_F]: { combat: 10, diplomacy: 45, survival: 18, medicine: 15, stealth: 32, knowledge: 28 },
+  [Profession.Scholar_F]: { combat: 5, diplomacy: 35, survival: 10, medicine: 28, stealth: 12, knowledge: 52 },
 };
 
 export const FRENCH_MALE_NAMES = [

@@ -19,7 +19,7 @@ const Log: React.FC<LogProps> = ({ log }) => {
         {log.map((entry, index) => (
           <li key={index} className={`mb-2 last:mb-0 ${entry.color} animate-slide-in`}>
             <span className="font-bold mr-2 text-amber-400">[Day {entry.day}]</span>
-            <span>{entry.message}</span>
+            <span className="whitespace-pre-wrap">{entry.message}</span>
           </li>
         ))}
       </ul>

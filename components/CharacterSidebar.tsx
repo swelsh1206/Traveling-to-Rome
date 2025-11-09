@@ -10,6 +10,7 @@ interface CharacterSidebarProps {
   characterImageUrl: string;
   onUseItem?: (item: string) => void;
   onOpenInventoryForTarget?: (member: PartyMember) => void;
+  onOpenIndex?: () => void;
 }
 
 const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
@@ -17,7 +18,8 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
   gameState,
   characterImageUrl,
   onUseItem,
-  onOpenInventoryForTarget
+  onOpenInventoryForTarget,
+  onOpenIndex
 }) => {
   const [partyExpanded, setPartyExpanded] = useState(true);
   const [inventoryExpanded, setInventoryExpanded] = useState(false);
@@ -66,10 +68,12 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
         <div className="mt-3 bg-stone-900/50 p-2 rounded-lg">
           <h4 className="text-xs text-gray-400 mb-2 font-semibold">Skills</h4>
           <div className="grid grid-cols-2 gap-1 text-xs">
-            <div className="text-gray-400">Combat: <span className="text-amber-200">{gameState.skills.combat}</span></div>
-            <div className="text-gray-400">Survival: <span className="text-amber-200">{gameState.skills.survival}</span></div>
-            <div className="text-gray-400">Persuade: <span className="text-amber-200">{gameState.skills.persuasion}</span></div>
-            <div className="text-gray-400">Medicine: <span className="text-amber-200">{gameState.skills.medicine}</span></div>
+            <div className="text-gray-400">⚔️ Combat: <span className="text-amber-200">{gameState.skills.combat}</span></div>
+            <div className="text-gray-400">💬 Diplomacy: <span className="text-amber-200">{gameState.skills.diplomacy}</span></div>
+            <div className="text-gray-400">🏕️ Survival: <span className="text-amber-200">{gameState.skills.survival}</span></div>
+            <div className="text-gray-400">⚕️ Medicine: <span className="text-amber-200">{gameState.skills.medicine}</span></div>
+            <div className="text-gray-400">🥷 Stealth: <span className="text-amber-200">{gameState.skills.stealth}</span></div>
+            <div className="text-gray-400">📚 Knowledge: <span className="text-amber-200">{gameState.skills.knowledge}</span></div>
           </div>
         </div>
 
@@ -139,6 +143,19 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
                       <span className="text-gray-400">Health:</span>
                       <span className={`font-bold ${member.health < 30 ? 'text-red-400' : member.health < 60 ? 'text-yellow-400' : 'text-green-400'}`}>
                         {member.health}/100
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Hunger:</span>
+                      <span className={`font-bold ${
+                        gameState.food < 10 ? 'text-red-500' :
+                        gameState.rationLevel === 'meager' ? 'text-orange-400' :
+                        gameState.rationLevel === 'normal' ? 'text-yellow-300' :
+                        'text-green-400'
+                      }`}>
+                        {gameState.food < 10 ? 'Starving' :
+                         gameState.rationLevel === 'meager' ? 'Hungry' :
+                         gameState.rationLevel === 'normal' ? 'Fed' : 'Well Fed'}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -234,6 +251,18 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
           </div>
         )}
       </div>
+
+      {/* Index Button */}
+      {onOpenIndex && (
+        <div className="p-3 border-t-2 border-amber-600/30">
+          <button
+            onClick={onOpenIndex}
+            className="w-full p-3 bg-gradient-to-r from-amber-700/30 to-amber-600/30 border-2 border-amber-500/50 text-amber-200 hover:from-amber-600/40 hover:to-amber-500/40 hover:border-amber-400 transition-all rounded-lg font-bold text-center shadow-lg"
+          >
+            📚 INDEX & HELP
+          </button>
+        </div>
+      )}
     </div>
   );
 };

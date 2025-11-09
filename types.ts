@@ -57,10 +57,12 @@ export interface Equipment {
 }
 
 export interface Skills {
-    combat: number; // 0-100
-    survival: number; // 0-100
-    persuasion: number; // 0-100
-    medicine: number; // 0-100
+    combat: number;      // 0-100: Fighting, weapons, physical confrontation
+    diplomacy: number;   // 0-100: Persuasion, negotiation, charm, social skills
+    survival: number;    // 0-100: Wilderness, foraging, tracking, endurance
+    medicine: number;    // 0-100: Healing, treating wounds and illness
+    stealth: number;     // 0-100: Sneaking, hiding, pickpocketing, evasion
+    knowledge: number;   // 0-100: Scholarship, languages, history, religion
 }
 
 export interface PartyMember {
@@ -97,6 +99,7 @@ export interface GameState {
   equipment: Equipment;
   skills: Skills;
   rationLevel: RationLevel;
+  weeklyFocus: WeeklyFocus;
 }
 
 export interface Player {
@@ -120,14 +123,16 @@ export interface LogEntry {
   color: string;
 }
 
-export type PlayerAction = 
+export type PlayerAction =
     | 'Travel' | 'Rest' | 'Hunt' | 'Make Camp' | 'Scout Ahead'
     | 'Craft' | 'Use Item' | 'Break Camp' | 'Feed Party'
     | 'Forage for Herbs' | 'Repair Wagon'
     | 'Visit Market' | 'Leave City'
     | 'Trade with Merchant' | 'Ignore Merchant';
 
-export type WindowType = 'Description' | 'Inventory' | 'History' | 'Party' | 'Market' | 'Hunt' | 'References' | 'Encounter';
+export type WeeklyFocus = 'normal' | 'cautious' | 'fast' | 'forage' | 'bond' | 'vigilant';
+
+export type WindowType = 'Description' | 'Inventory' | 'History' | 'Party' | 'Market' | 'Hunt' | 'References' | 'Encounter' | 'Index';
 
 export type EncounterType =
     | 'traveler'      // Friendly traveler with information or trade
@@ -156,13 +161,16 @@ export interface Encounter {
     options: EncounterOption[];
 }
 
+export type EncounterOptionType = 'fight' | 'money' | 'skill' | 'custom';
+
 export interface EncounterOption {
     label: string;
-    action: 'talk' | 'help' | 'trade' | 'fight' | 'flee' | 'ignore';
-    requirement?: {
-        type: 'money' | 'food' | 'item' | 'skill';
-        value: string | number;
-    };
+    type: EncounterOptionType; // Which structured type this is
+    description: string; // What this option does
+    skill?: keyof Skills; // For skill checks
+    skillThreshold?: number; // Difficulty of the skill check
+    moneyCost?: number; // Cost (negative) or reward (positive)
+    moneyDescription?: string; // What the money transaction represents
 }
 
 export interface HuntableAnimal {

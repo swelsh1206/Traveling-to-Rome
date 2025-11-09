@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
-import { Encounter } from '../types';
+import { Encounter, GameState } from '../types';
 
 interface EncounterWindowProps {
   encounter: Encounter;
-  onAction: (action: string) => void;
-  onConversation?: (message: string) => void;
+  gameState: GameState;
+  onAction: (optionIndex: number, customInput?: string) => void;
   onClose: () => void;
   isProcessing?: boolean;
 }
 
 const EncounterWindow: React.FC<EncounterWindowProps> = ({
   encounter,
+  gameState,
   onAction,
-  onConversation,
   onClose,
   isProcessing = false
 }) => {
-  const [conversationMode, setConversationMode] = useState(false);
-  const [message, setMessage] = useState('');
+  const [customInputMode, setCustomInputMode] = useState(false);
+  const [customInput, setCustomInput] = useState('');
 
   const getMoodColor = (mood: string) => {
     switch (mood) {
@@ -39,25 +39,30 @@ const EncounterWindow: React.FC<EncounterWindowProps> = ({
     }
   };
 
-  const handleAction = (action: string) => {
-    if (action === 'talk') {
-      setConversationMode(true);
+  const handleOptionClick = (index: number) => {
+    const option = encounter.options[index];
+
+    // If this is the custom option, show input field
+    if (option.type === 'custom') {
+      setCustomInputMode(true);
     } else {
-      onAction(action);
+      onAction(index);
     }
   };
 
-  const handleSendMessage = () => {
-    if (message.trim() && onConversation) {
-      onConversation(message);
-      setMessage('');
+  const handleCustomSubmit = () => {
+    if (customInput.trim()) {
+      const customOptionIndex = encounter.options.findIndex(opt => opt.type === 'custom');
+      onAction(customOptionIndex, customInput);
+      setCustomInput('');
+      setCustomInputMode(false);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      handleCustomSubmit();
     }
   };
 
@@ -111,58 +116,33 @@ const EncounterWindow: React.FC<EncounterWindowProps> = ({
           <p className="text-white">{encounter.situation}</p>
         </div>
 
-        {/* Conversation History */}
-        {encounter.npc.dialogue.length > 0 && (
-          <div className="mb-4 max-h-48 overflow-y-auto bg-stone-900/40 border border-stone-600 rounded-lg p-3">
-            <h3 className="text-sm font-bold text-cyan-300 mb-2">Conversation</h3>
-            <div className="space-y-2">
-              {encounter.npc.dialogue.map((line, index) => (
-                <div
-                  key={index}
-                  className={`p-2 rounded ${
-                    index % 2 === 0
-                      ? 'bg-cyan-900/30 text-cyan-100'
-                      : 'bg-stone-700/30 text-gray-300'
-                  }`}
-                >
-                  <p className="text-sm">
-                    <span className="font-bold">
-                      {index % 2 === 0 ? encounter.npc.name : 'You'}:
-                    </span>{' '}
-                    {line}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Conversation Mode */}
-        {conversationMode ? (
+        {/* Custom Input Mode */}
+        {customInputMode ? (
           <div className="mb-4">
-            <div className="bg-stone-900/60 border-2 border-cyan-600/50 rounded-lg p-3">
-              <label className="block text-cyan-300 font-bold mb-2 text-sm">
-                What do you say to {encounter.npc.name}?
+            <div className="bg-stone-900/60 border-2 border-purple-600/50 rounded-lg p-3">
+              <label className="block text-purple-300 font-bold mb-2 text-sm">
+                What do you say or do?
               </label>
               <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                value={customInput}
+                onChange={(e) => setCustomInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Type your message..."
-                className="w-full bg-stone-800 border border-cyan-600/30 rounded p-3 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none resize-none"
+                placeholder="Describe your action or words..."
+                className="w-full bg-stone-800 border border-purple-600/30 rounded p-3 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none resize-none"
                 rows={3}
                 disabled={isProcessing}
+                autoFocus
               />
               <div className="flex gap-2 mt-2">
                 <button
-                  onClick={handleSendMessage}
-                  disabled={!message.trim() || isProcessing}
-                  className="flex-1 bg-cyan-700 hover:bg-cyan-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded transition-colors"
+                  onClick={handleCustomSubmit}
+                  disabled={!customInput.trim() || isProcessing}
+                  className="flex-1 bg-purple-700 hover:bg-purple-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded transition-colors"
                 >
-                  {isProcessing ? 'Waiting...' : 'Send'}
+                  {isProcessing ? 'Processing...' : 'Submit'}
                 </button>
                 <button
-                  onClick={() => setConversationMode(false)}
+                  onClick={() => setCustomInputMode(false)}
                   disabled={isProcessing}
                   className="bg-stone-700 hover:bg-stone-600 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-bold py-2 px-4 rounded transition-colors"
                 >
@@ -175,41 +155,72 @@ const EncounterWindow: React.FC<EncounterWindowProps> = ({
           /* Action Options */
           <div className="space-y-2">
             <h3 className="text-cyan-300 font-bold mb-2">What do you do?</h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {encounter.options.map((option, index) => {
-                const getActionColor = (action: string) => {
-                  switch (action) {
-                    case 'talk': return 'bg-blue-700 hover:bg-blue-600 border-blue-500';
-                    case 'help': return 'bg-green-700 hover:bg-green-600 border-green-500';
-                    case 'trade': return 'bg-yellow-700 hover:bg-yellow-600 border-yellow-500';
+                const getOptionColor = (type: string) => {
+                  switch (type) {
                     case 'fight': return 'bg-red-700 hover:bg-red-600 border-red-500';
-                    case 'flee': return 'bg-purple-700 hover:bg-purple-600 border-purple-500';
-                    case 'ignore': return 'bg-gray-700 hover:bg-gray-600 border-gray-500';
+                    case 'money': return 'bg-yellow-700 hover:bg-yellow-600 border-yellow-500';
+                    case 'skill': return 'bg-blue-700 hover:bg-blue-600 border-blue-500';
+                    case 'custom': return 'bg-purple-700 hover:bg-purple-600 border-purple-500';
                     default: return 'bg-cyan-700 hover:bg-cyan-600 border-cyan-500';
                   }
                 };
 
-                const getActionIcon = (action: string) => {
-                  switch (action) {
-                    case 'talk': return '💬';
-                    case 'help': return '🤝';
-                    case 'trade': return '💰';
+                const getOptionIcon = (type: string) => {
+                  switch (type) {
                     case 'fight': return '⚔️';
-                    case 'flee': return '🏃';
-                    case 'ignore': return '🚶';
+                    case 'money': return '💰';
+                    case 'skill': return '🎯';
+                    case 'custom': return '✍️';
                     default: return '•';
                   }
                 };
 
+                // Check if player can afford money options
+                const canAfford = option.type !== 'money' || !option.moneyCost ||
+                                 option.moneyCost > 0 || gameState.money >= Math.abs(option.moneyCost);
+
+                // Get player skill value for skill options
+                const playerSkill = option.type === 'skill' && option.skill ?
+                                   gameState.skills[option.skill] : 0;
+
                 return (
                   <button
                     key={index}
-                    onClick={() => handleAction(option.action)}
-                    disabled={isProcessing}
-                    className={`${getActionColor(option.action)} disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded border-2 transition-all hover:scale-105 active:scale-95`}
+                    onClick={() => handleOptionClick(index)}
+                    disabled={isProcessing || !canAfford}
+                    className={`${getOptionColor(option.type)} disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-3 rounded border-2 transition-all hover:scale-105 active:scale-95 text-left`}
                   >
-                    <span className="mr-2">{getActionIcon(option.action)}</span>
-                    {option.label}
+                    <div className="flex items-start gap-2">
+                      <span className="text-xl flex-shrink-0">{getOptionIcon(option.type)}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm">{option.label}</div>
+                        <div className="text-xs text-gray-200 mt-1">{option.description}</div>
+
+                        {/* Show skill info */}
+                        {option.type === 'skill' && option.skill && option.skillThreshold && (
+                          <div className="text-xs mt-1 bg-black/30 rounded px-2 py-1">
+                            <span className="capitalize">{option.skill}</span>: {playerSkill}/{option.skillThreshold}
+                            {playerSkill >= option.skillThreshold ?
+                              <span className="text-green-300 ml-1">✓</span> :
+                              <span className="text-yellow-300 ml-1">⚠</span>
+                            }
+                          </div>
+                        )}
+
+                        {/* Show money info */}
+                        {option.type === 'money' && option.moneyCost && (
+                          <div className="text-xs mt-1 bg-black/30 rounded px-2 py-1">
+                            {option.moneyCost < 0 ?
+                              <span className="text-red-300">Cost: {Math.abs(option.moneyCost)} coins</span> :
+                              <span className="text-green-300">Gain: +{option.moneyCost} coins</span>
+                            }
+                            {!canAfford && <span className="text-red-400 ml-1">(Can't afford!)</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </button>
                 );
               })}

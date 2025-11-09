@@ -2,10 +2,10 @@
 
 export const STAT_TOOLTIPS = {
   health: "Your physical wellbeing. Falls to 0 and you die. Affected by food, rest, injuries, and disease. Restore with medical items or resting at camp.",
-  food: "Rations for your journey. Each person consumes 1 food per week of travel. Running out causes starvation and health loss. Buy at markets or hunt for more.",
+  food: "Provisions for your journey. Each person consumes food per week based on rations: Filling (2x), Normal (1x), Meager (0.5x). Running out causes starvation. Buy at markets or hunt for more.",
   money: "Coins for trade. Use to purchase supplies, food, and equipment at markets. Earn through selling trade goods or completing tasks.",
   oxen: "Draft animals pulling your wagon. More oxen means faster, safer travel. They can die from overwork, starvation, or accidents.",
-  stamina: "Energy for non-travel actions. Consumed by hunting, scouting, crafting, and foraging. Fully restores when you travel.",
+  stamina: "Energy for non-travel actions. Consumed by hunting, scouting, crafting, and foraging. Restores based on ration level when you travel.",
   distanceToRome: "Kilometers remaining to reach Rome. The journey totals 1,400 km through France, Switzerland, and Italy.",
   distanceTraveled: "How far you've come from your starting point in France. Track your progress toward the eternal city.",
 };

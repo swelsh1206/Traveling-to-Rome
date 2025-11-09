@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Player, GameState, LogEntry, PlayerAction, WindowType, Inventory, Condition, PartyMember, Profession, HuntableAnimal, Encounter } from '../types';
 import Log from './Log';
 import ActionButton from './ActionButton';
-import { generateActionOutcome, generateEncounter, processEncounterAction, processEncounterConversation } from '../services/geminiService';
+import { generateActionOutcome, generateEncounter, processEncounterAction } from '../services/geminiService';
 import LoadingSpinner from './LoadingSpinner';
 import { TOTAL_DISTANCE_TO_ROME, PROFESSION_STATS, ITEM_EFFECTS, ITEM_DESCRIPTIONS, CRAFTING_RECIPES, INITIAL_HEALTH, ITEM_PRICES, ROUTE_CHECKPOINTS, HUNTABLE_ANIMALS, ITEM_ICONS } from '../constants';
 import ModalWindow from './ModalWindow';
@@ -12,6 +12,7 @@ import SettingsMenu from './SettingsMenu';
 import CharacterSidebar from './CharacterSidebar';
 import MapView from './MapView';
 import EncounterWindow from './EncounterWindow';
+import { STAT_TOOLTIPS, CONDITION_TOOLTIPS, PHASE_TOOLTIPS, WEATHER_TOOLTIPS, MOOD_TOOLTIPS } from '../tooltipDescriptions';
 
 interface GameUIProps {
   player: Player;
@@ -19,6 +20,7 @@ interface GameUIProps {
   characterImageUrl: string;
   onGameEnd: (message: string, victory: boolean) => void;
   onRestartRun?: () => void;
+  devMode?: boolean;
 }
 
 interface PartyChange {
@@ -111,7 +113,7 @@ const getWeatherTravelEffect = (weather: 'Clear' | 'Rain' | 'Storm' | 'Snow' | '
     }
 };
 
-const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImageUrl, onGameEnd, onRestartRun }) => {
+const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImageUrl, onGameEnd, onRestartRun, devMode = false }) => {
   const [gameState, setGameState] = useState<GameState>(initialGameState);
   const [log, setLog] = useState<LogEntry[]>([{ day: 1, message: "Your journey begins. Choose your first action.", color: 'text-white' }]);
   const [isLoading, setIsLoading] = useState(false);
@@ -122,9 +124,18 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
   const [huntOptions, setHuntOptions] = useState<HuntableAnimal[]>([]);
   const [currentEncounter, setCurrentEncounter] = useState<Encounter | null>(null);
   const [isProcessingEncounter, setIsProcessingEncounter] = useState(false);
+  const [cart, setCart] = useState<Record<string, { quantity: number; type: 'buy' | 'sell' }>>({});
 
   const addLogEntry = useCallback((message: string, color: string = 'text-white', dayOverride?: number) => {
-    setLog(prevLog => [...prevLog, { day: dayOverride ?? gameState.day, message, color }]);
+    setLog(prevLog => {
+        // Prevent duplicate consecutive entries
+        const lastEntry = prevLog[prevLog.length - 1];
+        const newEntry = { day: dayOverride ?? gameState.day, message, color };
+        if (lastEntry && lastEntry.message === message && lastEntry.day === newEntry.day) {
+            return prevLog;
+        }
+        return [...prevLog, newEntry];
+    });
   }, [gameState.day]);
 
   const handleOpenInventoryForTarget = (member: PartyMember) => {
@@ -306,6 +317,13 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
   const handleAction = useCallback(async (action: PlayerAction) => {
     if (isGameOver || isLoading) return;
 
+    // Check stamina for actions that require it
+    const staminaRequiredActions = ['Hunt', 'Scout Ahead', 'Forage for Herbs', 'Repair Wagon'];
+    if (staminaRequiredActions.includes(action) && gameState.stamina <= 0) {
+        addLogEntry("You are too exhausted to perform this action. You must rest first.", 'text-red-400');
+        return;
+    }
+
     if (action === 'Hunt') {
         const options = shuffleArray([...HUNTABLE_ANIMALS]).slice(0, 3);
         setHuntOptions(options);
@@ -405,6 +423,11 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
             newState.month = currentDate.month;
             newState.dayOfMonth = currentDate.dayOfMonth;
             newState.season = getSeasonFromMonth(currentDate.month);
+
+            // Restore stamina based on ration level when traveling
+            const staminaRestore = newState.rationLevel === 'filling' ? 80 :
+                                 newState.rationLevel === 'normal' ? 60 : 30;
+            newState.stamina = Math.min(100, newState.stamina + staminaRestore);
         }
 
         // Actions other than Travel consume stamina
@@ -415,7 +438,16 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
         newState.health = Math.max(0, Math.min(100, newState.health + outcome.health_change));
 
-        const foodConsumed = action === 'Travel' ? (1 + newState.party.length) : 0;
+        // Food consumption during travel (per week, not per day!)
+        // Food represents "provisions" - generic food units
+        // Each person in party consumes food per WEEK of travel
+        let foodConsumed = 0;
+        if (action === 'Travel') {
+            const partySize = 1 + newState.party.length;
+            const rationMultiplier = newState.rationLevel === 'filling' ? 2 :
+                                   newState.rationLevel === 'normal' ? 1 : 0.5;
+            foodConsumed = Math.ceil(partySize * rationMultiplier); // Weekly consumption
+        }
         newState.food = Math.max(0, newState.food + outcome.food_change - foodConsumed);
 
         newState.money = Math.max(0, newState.money + outcome.money_change);
@@ -474,7 +506,13 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
     // Add log entries after state update
     if (action === 'Travel') {
-        addLogEntry(outcome.description, 'text-white', newDay);
+        // Format weekly happenings as bullets if they exist
+        let message = outcome.description;
+        if (outcome.weekly_happenings && outcome.weekly_happenings.length > 0) {
+            const happenings = outcome.weekly_happenings.map((h: string) => `  • ${h}`).join('\n');
+            message = `${outcome.description}\n${happenings}`;
+        }
+        addLogEntry(message, 'text-white', newDay);
     } else {
         addLogEntry(outcome.description, 'text-white');
     }
@@ -504,13 +542,13 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
   }, [player, gameState, addLogEntry, isGameOver, isLoading, nextCheckpointIndex]);
 
   // Handle encounter actions
-  const handleEncounterAction = useCallback(async (action: string) => {
+  const handleEncounterAction = useCallback(async (optionIndex: number, customInput?: string) => {
     if (!currentEncounter || isProcessingEncounter) return;
 
     setIsProcessingEncounter(true);
 
     try {
-      const outcome = await processEncounterAction(player, gameState, currentEncounter, action);
+      const outcome = await processEncounterAction(player, gameState, currentEncounter, optionIndex, customInput);
 
       // Apply outcome to game state
       setGameState(prev => {
@@ -541,35 +579,6 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
       setIsProcessingEncounter(false);
     }
   }, [currentEncounter, player, gameState, isProcessingEncounter, addLogEntry]);
-
-  // Handle encounter conversation
-  const handleEncounterConversation = useCallback(async (message: string) => {
-    if (!currentEncounter || isProcessingEncounter) return;
-
-    setIsProcessingEncounter(true);
-
-    try {
-      const response = await processEncounterConversation(player, gameState, currentEncounter, message);
-
-      if (response) {
-        // Update encounter with new dialogue
-        setCurrentEncounter(prev => {
-          if (!prev) return null;
-          return {
-            ...prev,
-            npc: {
-              ...prev.npc,
-              dialogue: [...prev.npc.dialogue, message, response]
-            }
-          };
-        });
-      }
-    } catch (error) {
-      console.error("Error processing encounter conversation:", error);
-    } finally {
-      setIsProcessingEncounter(false);
-    }
-  }, [currentEncounter, player, gameState, isProcessingEncounter]);
 
    // Daily effects from conditions for player and party
   useEffect(() => {
@@ -964,30 +973,169 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                 }
             });
 
+            const cartTotal = Object.entries(cart).reduce((sum, [item, { quantity, type }]) => {
+                const prices = ITEM_PRICES[item];
+                if (!prices) return sum;
+                const price = type === 'buy' ? Math.ceil(prices.buy * buyModifier) : Math.floor(prices.sell * sellModifier);
+                return sum + (type === 'buy' ? -price * quantity : price * quantity);
+            }, 0);
+
+            const addToCart = (item: string, type: 'buy' | 'sell', qty: number) => {
+                setCart(prev => {
+                    const existing = prev[item];
+                    if (existing && existing.type === type) {
+                        return { ...prev, [item]: { type, quantity: Math.max(0, existing.quantity + qty) } };
+                    }
+                    return qty > 0 ? { ...prev, [item]: { type, quantity: qty } } : prev;
+                });
+            };
+
+            const removeFromCart = (item: string) => {
+                setCart(prev => {
+                    const newCart = { ...prev };
+                    delete newCart[item];
+                    return newCart;
+                });
+            };
+
+            const completeTransaction = () => {
+                let canAfford = true;
+                let totalCost = 0;
+
+                // Check if we can afford everything
+                Object.entries(cart).forEach(([item, { quantity, type }]) => {
+                    const prices = ITEM_PRICES[item];
+                    if (!prices) return;
+                    const price = type === 'buy' ? Math.ceil(prices.buy * buyModifier) : Math.floor(prices.sell * sellModifier);
+                    totalCost += (type === 'buy' ? price * quantity : -price * quantity);
+                });
+
+                if (gameState.money < totalCost) {
+                    addLogEntry("You don't have enough money for this transaction.", 'text-red-400');
+                    return;
+                }
+
+                // Process all transactions
+                Object.entries(cart).forEach(([item, { quantity, type }]) => {
+                    const prices = ITEM_PRICES[item];
+                    if (!prices) return;
+                    const price = type === 'buy' ? Math.ceil(prices.buy * buyModifier) : Math.floor(prices.sell * sellModifier);
+                    handleMarketTransaction(type, item, quantity, price);
+                });
+
+                setCart({});
+            };
+
             return (
-                <div>
-                    <h3 className="text-xl text-amber-200 mb-3 border-b border-amber-600/30 pb-1">Market Goods</h3>
-                    <ul className="text-md space-y-2">
-                        {Object.entries(itemsToTrade).map(([item, prices]) => (
-                            <li key={item} className="grid grid-cols-3 gap-2 items-center">
-                                <span>{item}</span>
-                                <div className="text-center">
-                                    {prices.buy > 0 && 
-                                        <button onClick={() => handleMarketTransaction('buy', item, 1, Math.ceil(prices.buy * buyModifier))} className="text-xs px-2 py-1 border border-green-500 text-green-400 hover:bg-green-500 hover:text-stone-900 rounded-md">
-                                            Buy ({Math.ceil(prices.buy * buyModifier)})
-                                        </button>
-                                    }
-                                </div>
-                                <div className="text-center">
-                                    {prices.sell > 0 && 
-                                        <button onClick={() => handleMarketTransaction('sell', item, 1, Math.floor(prices.sell * sellModifier))} className="text-xs px-2 py-1 border border-yellow-500 text-yellow-400 hover:bg-yellow-500 hover:text-stone-900 rounded-md">
-                                            Sell ({Math.floor(prices.sell * sellModifier)})
-                                        </button>
-                                    }
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center border-b border-amber-600/30 pb-2">
+                        <h3 className="text-xl text-amber-200">Market Goods</h3>
+                        <div className="text-sm text-gray-400">
+                            Your Money: <span className="text-amber-300 font-bold">{gameState.money}</span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Items for sale */}
+                        <div className="bg-stone-800/30 p-3 rounded-lg border border-green-600/20">
+                            <h4 className="text-green-400 font-bold mb-2 text-sm">Buy Items</h4>
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {Object.entries(itemsToTrade).filter(([_, prices]) => prices.buy > 0).map(([item, prices]) => {
+                                    const buyPrice = Math.ceil(prices.buy * buyModifier);
+                                    const cartQty = cart[item]?.type === 'buy' ? cart[item].quantity : 0;
+                                    return (
+                                        <div key={item} className="flex items-center justify-between bg-stone-900/50 p-2 rounded">
+                                            <div className="flex-1">
+                                                <div className="text-sm text-gray-200">{ITEM_ICONS[item] || '📦'} {item}</div>
+                                                <div className="text-xs text-green-400">{buyPrice} 💰</div>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => addToCart(item, 'buy', -1)} className="px-2 py-0.5 bg-red-700/50 hover:bg-red-600 text-white text-xs rounded">-</button>
+                                                <span className="text-xs w-8 text-center text-amber-200">{cartQty}</span>
+                                                <button onClick={() => addToCart(item, 'buy', 1)} className="px-2 py-0.5 bg-green-700/50 hover:bg-green-600 text-white text-xs rounded">+</button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Items to sell */}
+                        <div className="bg-stone-800/30 p-3 rounded-lg border border-yellow-600/20">
+                            <h4 className="text-yellow-400 font-bold mb-2 text-sm">Sell Items</h4>
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {Object.entries(itemsToTrade).filter(([item, prices]) => {
+                                    const currentAmount = item === 'Food' ? gameState.food : item === 'Oxen' ? gameState.oxen : (gameState.inventory[item] || 0);
+                                    return prices.sell > 0 && currentAmount > 0;
+                                }).map(([item, prices]) => {
+                                    const sellPrice = Math.floor(prices.sell * sellModifier);
+                                    const cartQty = cart[item]?.type === 'sell' ? cart[item].quantity : 0;
+                                    const currentAmount = item === 'Food' ? gameState.food : item === 'Oxen' ? gameState.oxen : (gameState.inventory[item] || 0);
+                                    return (
+                                        <div key={item} className="flex items-center justify-between bg-stone-900/50 p-2 rounded">
+                                            <div className="flex-1">
+                                                <div className="text-sm text-gray-200">{ITEM_ICONS[item] || '📦'} {item}</div>
+                                                <div className="text-xs text-yellow-400">{sellPrice} 💰 <span className="text-gray-500">(Have: {currentAmount})</span></div>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => addToCart(item, 'sell', -1)} className="px-2 py-0.5 bg-red-700/50 hover:bg-red-600 text-white text-xs rounded">-</button>
+                                                <span className="text-xs w-8 text-center text-amber-200">{cartQty}</span>
+                                                <button onClick={() => addToCart(item, 'sell', Math.min(1, currentAmount - cartQty))} className="px-2 py-0.5 bg-green-700/50 hover:bg-green-600 text-white text-xs rounded">+</button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Shopping Cart */}
+                    {Object.keys(cart).length > 0 && (
+                        <div className="bg-amber-900/20 p-3 rounded-lg border-2 border-amber-600/50">
+                            <h4 className="text-amber-300 font-bold mb-2">Transaction Summary</h4>
+                            <div className="space-y-1 mb-3">
+                                {Object.entries(cart).map(([item, { quantity, type }]) => {
+                                    const prices = ITEM_PRICES[item];
+                                    const price = type === 'buy' ? Math.ceil(prices.buy * buyModifier) : Math.floor(prices.sell * sellModifier);
+                                    const total = price * quantity;
+                                    return (
+                                        <div key={item} className="flex items-center justify-between text-sm">
+                                            <span className="text-gray-300">
+                                                {type === 'buy' ? '🛒' : '💰'} {quantity}x {item}
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={type === 'buy' ? 'text-red-400' : 'text-green-400'}>
+                                                    {type === 'buy' ? '-' : '+'}{total}
+                                                </span>
+                                                <button onClick={() => removeFromCart(item)} className="text-xs text-red-400 hover:text-red-300">✕</button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <div className="flex items-center justify-between border-t border-amber-600/30 pt-2">
+                                <span className="font-bold text-amber-200">Net Total:</span>
+                                <span className={`font-bold text-lg ${cartTotal < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                    {cartTotal < 0 ? '' : '+'}{cartTotal} 💰
+                                </span>
+                            </div>
+                            <div className="flex gap-2 mt-3">
+                                <button
+                                    onClick={completeTransaction}
+                                    disabled={gameState.money < -cartTotal}
+                                    className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded font-bold"
+                                >
+                                    Complete Transaction
+                                </button>
+                                <button
+                                    onClick={() => setCart({})}
+                                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold"
+                                >
+                                    Clear Cart
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         case 'Hunt':
@@ -1122,6 +1270,82 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                     </div>
                 </div>
             );
+        case 'Index':
+            return (
+                <div className="space-y-4 text-sm max-h-[70vh] overflow-y-auto">
+                    <div className="bg-amber-900/20 p-3 rounded-lg border border-amber-600/30">
+                        <h3 className="text-lg text-amber-200 font-bold mb-2">📖 Game Index & Reference</h3>
+                        <p className="text-gray-300 text-xs italic">
+                            Quick reference for all game stats, conditions, and mechanics
+                        </p>
+                    </div>
+
+                    {/* Stats Section */}
+                    <div className="bg-stone-700/30 p-3 rounded-lg border border-amber-600/20">
+                        <h4 className="text-amber-300 font-bold mb-2">📊 Stats</h4>
+                        <div className="space-y-2">
+                            {Object.entries(STAT_TOOLTIPS).map(([stat, tooltip]) => (
+                                <div key={stat} className="bg-stone-800/50 p-2 rounded">
+                                    <div className="text-amber-200 font-semibold capitalize">{stat.replace(/([A-Z])/g, ' $1').trim()}</div>
+                                    <div className="text-gray-300 text-xs mt-1">{tooltip}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Conditions Section */}
+                    <div className="bg-stone-700/30 p-3 rounded-lg border border-red-600/20">
+                        <h4 className="text-red-300 font-bold mb-2">⚠️ Conditions</h4>
+                        <div className="space-y-2">
+                            {Object.entries(CONDITION_TOOLTIPS).map(([condition, tooltip]) => (
+                                <div key={condition} className="bg-stone-800/50 p-2 rounded border-l-2 border-red-500">
+                                    <div className="text-red-200 font-semibold">{condition}</div>
+                                    <div className="text-gray-300 text-xs mt-1">{tooltip}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Game Phases Section */}
+                    <div className="bg-stone-700/30 p-3 rounded-lg border border-amber-600/20">
+                        <h4 className="text-amber-300 font-bold mb-2">🗺️ Game Phases</h4>
+                        <div className="space-y-2">
+                            {Object.entries(PHASE_TOOLTIPS).map(([phase, tooltip]) => (
+                                <div key={phase} className="bg-stone-800/50 p-2 rounded">
+                                    <div className="text-amber-200 font-semibold capitalize">{phase.replace('_', ' ')}</div>
+                                    <div className="text-gray-300 text-xs mt-1">{tooltip}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Weather Section */}
+                    <div className="bg-stone-700/30 p-3 rounded-lg border border-blue-600/20">
+                        <h4 className="text-blue-300 font-bold mb-2">🌦️ Weather Conditions</h4>
+                        <div className="space-y-2">
+                            {Object.entries(WEATHER_TOOLTIPS).map(([weather, tooltip]) => (
+                                <div key={weather} className="bg-stone-800/50 p-2 rounded">
+                                    <div className="text-blue-200 font-semibold">{weather}</div>
+                                    <div className="text-gray-300 text-xs mt-1">{tooltip}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Moods Section */}
+                    <div className="bg-stone-700/30 p-3 rounded-lg border border-pink-600/20">
+                        <h4 className="text-pink-300 font-bold mb-2">😊 Family Moods</h4>
+                        <div className="space-y-2">
+                            {Object.entries(MOOD_TOOLTIPS).map(([mood, tooltip]) => (
+                                <div key={mood} className="bg-stone-800/50 p-2 rounded">
+                                    <div className="text-pink-200 font-semibold capitalize">{mood}</div>
+                                    <div className="text-gray-300 text-xs mt-1">{tooltip}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
         default: return null;
     }
   };
@@ -1165,6 +1389,8 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
              location={gameState.currentLocation}
              rationLevel={gameState.rationLevel}
              onRationChange={(level) => setGameState({ ...gameState, rationLevel: level })}
+             weeklyFocus={gameState.weeklyFocus}
+             onWeeklyFocusChange={(focus) => setGameState({ ...gameState, weeklyFocus: focus })}
            />
           <div className="flex-grow flex flex-col min-h-0">
             <div className="flex-grow mb-4 min-h-0 max-h-[45vh] h-full">
@@ -1202,17 +1428,67 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                       )}
                       {/* Other action buttons */}
                       <div className="flex flex-wrap gap-4 justify-center">
-                          {actionButtons.filter(btn => btn.action !== 'Travel').map((btn) => (
-                              <ActionButton
-                                key={btn.action}
-                                onClick={() => handleAction(btn.action as PlayerAction)}
-                                disabled={isLoading}
-                                variant={isCity ? 'purple' : isCamp ? 'sky' : 'amber'}
-                              >
-                                  {btn.label}
-                              </ActionButton>
-                          ))}
+                          {actionButtons.filter(btn => btn.action !== 'Travel').map((btn) => {
+                              const staminaRequiredActions = ['Hunt', 'Scout Ahead', 'Forage for Herbs', 'Repair Wagon'];
+                              const requiresStamina = staminaRequiredActions.includes(btn.action);
+                              const isDisabled = isLoading || (requiresStamina && gameState.stamina <= 0);
+
+                              return (
+                                  <ActionButton
+                                    key={btn.action}
+                                    onClick={() => handleAction(btn.action as PlayerAction)}
+                                    disabled={isDisabled}
+                                    variant={isCity ? 'purple' : isCamp ? 'sky' : 'amber'}
+                                  >
+                                      {btn.label}
+                                      {requiresStamina && gameState.stamina <= 0 && <span className="text-xs ml-1">(Exhausted)</span>}
+                                  </ActionButton>
+                              );
+                          })}
                       </div>
+
+                      {/* DEV MODE Controls */}
+                      {devMode && !isGameOver && (
+                        <div className="mt-4 pt-4 border-t-2 border-red-600/50">
+                          <p className="text-xs text-red-400 mb-2 text-center font-bold">DEV MODE ACTIVE</p>
+                          <div className="flex flex-wrap gap-2 justify-center">
+                            <button
+                              onClick={() => {
+                                const nextCheckpoint = ROUTE_CHECKPOINTS[nextCheckpointIndex];
+                                if (nextCheckpoint) {
+                                  setGameState(prev => ({
+                                    ...prev,
+                                    distanceTraveled: nextCheckpoint.distance,
+                                    distanceToRome: TOTAL_DISTANCE_TO_ROME - nextCheckpoint.distance,
+                                    phase: 'in_city',
+                                    currentLocation: `the city of ${nextCheckpoint.name}`
+                                  }));
+                                  setNextCheckpointIndex(prev => prev + 1);
+                                  addLogEntry(`[DEV] Teleported to ${nextCheckpoint.name}`, 'text-red-400');
+                                } else {
+                                  addLogEntry(`[DEV] No more cities!`, 'text-red-400');
+                                }
+                              }}
+                              className="px-3 py-1 bg-red-900/50 border border-red-600 text-red-300 hover:bg-red-800/50 text-xs rounded"
+                            >
+                              Skip to Next City
+                            </button>
+                            <button
+                              onClick={() => {
+                                setGameState(prev => ({
+                                  ...prev,
+                                  distanceTraveled: TOTAL_DISTANCE_TO_ROME,
+                                  distanceToRome: 0
+                                }));
+                                addLogEntry(`[DEV] Teleported to Rome!`, 'text-red-400');
+                              }}
+                              className="px-3 py-1 bg-red-900/50 border border-red-600 text-red-300 hover:bg-red-800/50 text-xs rounded"
+                            >
+                              Skip to End
+                            </button>
+                          </div>
+                        </div>
+                      )}
                   </div>
               )}
             </div>
@@ -1226,6 +1502,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
           characterImageUrl={characterImageUrl}
           onUseItem={handleUseItem}
           onOpenInventoryForTarget={handleOpenInventoryForTarget}
+          onOpenIndex={() => setActiveWindow('Index')}
         />
       </div>
       {activeWindow && (
@@ -1238,8 +1515,8 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
       {currentEncounter && (
         <EncounterWindow
           encounter={currentEncounter}
+          gameState={gameState}
           onAction={handleEncounterAction}
-          onConversation={handleEncounterConversation}
           onClose={() => setCurrentEncounter(null)}
           isProcessing={isProcessingEncounter}
         />

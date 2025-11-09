@@ -20,6 +20,7 @@ function App() {
   const [characterImageUrl, setCharacterImageUrl] = useState<string>('');
   const [endMessage, setEndMessage] = useState({ message: '', victory: false });
   const [isCreating, setIsCreating] = useState(false);
+  const [devMode, setDevMode] = useState(false);
 
   const handleRandomStart = () => {
     setScreen('create-random');
@@ -125,6 +126,7 @@ function App() {
         equipment: { ...PROFESSION_EQUIPMENT[profession] },
         skills: { ...PROFESSION_SKILLS[profession] },
         rationLevel: 'normal', // Default to normal rations
+        weeklyFocus: 'normal', // Default to normal travel focus
       };
 
       setPlayer(newPlayer);
@@ -163,20 +165,20 @@ function App() {
   const renderScreen = () => {
     switch (screen) {
       case 'start':
-        return <StartScreen onRandomStart={handleRandomStart} onCustomStart={handleCustomStart} />;
+        return <StartScreen onRandomStart={handleRandomStart} onCustomStart={handleCustomStart} onDevModeChange={setDevMode} />;
       case 'create-random':
         return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="random" />;
       case 'create-custom':
         return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="custom" />;
       case 'game':
         if (player && gameState) {
-          return <GameUI player={player} initialGameState={gameState} characterImageUrl={characterImageUrl} onGameEnd={handleGameEnd} onRestartRun={handleRestart} />;
+          return <GameUI player={player} initialGameState={gameState} characterImageUrl={characterImageUrl} onGameEnd={handleGameEnd} onRestartRun={handleRestart} devMode={devMode} />;
         }
         return <p>Loading game...</p>;
       case 'end':
         return <EndScreen message={endMessage.message} victory={endMessage.victory} onRestart={handleRestart} />;
       default:
-        return <StartScreen onRandomStart={handleRandomStart} onCustomStart={handleCustomStart} />;
+        return <StartScreen onRandomStart={handleRandomStart} onCustomStart={handleCustomStart} onDevModeChange={setDevMode} />;
     }
   };
 

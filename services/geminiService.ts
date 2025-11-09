@@ -22,6 +22,11 @@ const outcomeSchema = {
             type: Type.OBJECT,
             properties: {
                 description: { type: Type.STRING, description: "A description of the outcome of the player's choice. Should be 1-2 sentences." },
+                weekly_happenings: {
+                    type: Type.ARRAY,
+                    description: "For Travel action only: 2-4 brief bullet points describing what happened during the week (e.g., 'Passed through a war-torn village', 'Shared camp with pilgrims', 'Narrowly avoided bandits'). Keep each point to 3-7 words. Omit for non-Travel actions.",
+                    items: { type: Type.STRING }
+                },
                 health_change: { type: Type.NUMBER, description: "Integer change in player health. Can be positive, negative, or zero." },
                 food_change: { type: Type.NUMBER, description: "Integer change in player food supply. Can be positive, negative, or zero." },
                 money_change: { type: Type.NUMBER, description: "Integer change in player money. Can be positive, negative, or zero." },
@@ -98,14 +103,19 @@ const encounterSchema = {
                 situation: { type: Type.STRING, description: "What's happening when you meet this person. Sets the context. 2-3 sentences." },
                 options: {
                     type: Type.ARRAY,
-                    description: "3-4 possible actions the player can take in this encounter.",
+                    description: "Exactly 4 options in this order: 1) Fight option, 2) Money option, 3) Skill check option, 4) Custom input option.",
                     items: {
                         type: Type.OBJECT,
                         properties: {
-                            label: { type: Type.STRING, description: "The action label shown to the player. Short and clear." },
-                            action: { type: Type.STRING, description: "The action type: talk, help, trade, fight, flee, or ignore." },
+                            label: { type: Type.STRING, description: "The action label shown to the player. Short and clear (3-5 words)." },
+                            type: { type: Type.STRING, description: "The option type: 'fight', 'money', 'skill', or 'custom'." },
+                            description: { type: Type.STRING, description: "What this option does and potential consequences (1 sentence)." },
+                            skill: { type: Type.STRING, description: "For skill type only: which skill is used (combat, diplomacy, survival, medicine, stealth, knowledge)." },
+                            skillThreshold: { type: Type.NUMBER, description: "For skill type only: difficulty threshold (30=easy, 50=medium, 70=hard)." },
+                            moneyCost: { type: Type.NUMBER, description: "For money type only: amount spent (negative) or earned (positive)." },
+                            moneyDescription: { type: Type.STRING, description: "For money type only: what the money represents (e.g., 'bribe', 'payment', 'reward')." },
                         },
-                        required: ["label", "action"]
+                        required: ["label", "type", "description"]
                     }
                 }
             },
@@ -150,6 +160,23 @@ const getProfessionEventGuidance = (profession: Profession) => {
     }
 };
 
+const getWeeklyFocusGuidance = (focus: string) => {
+    switch(focus) {
+        case 'cautious':
+            return "WEEKLY FOCUS: CAUTIOUS TRAVEL - The player is being extra careful, watching for dangers. Lower distance (15-25 km), less risk of ambush/injury, may avoid some dangers.";
+        case 'fast':
+            return "WEEKLY FOCUS: FAST TRAVEL - The player is pushing hard to cover ground quickly. Higher distance (30-45 km), more exhaustion, higher risk of accidents/ambush.";
+        case 'forage':
+            return "WEEKLY FOCUS: FORAGING - The player is gathering resources while traveling. Normal distance (20-30 km), chance to find food/herbs, may discover useful items.";
+        case 'bond':
+            return "WEEKLY FOCUS: FAMILY BONDING - The player is spending extra time with family during travel. Normal distance (20-30 km), improves family relationships/morale, lowers stress.";
+        case 'vigilant':
+            return "WEEKLY FOCUS: VIGILANT - The player is keeping extra watch for threats and opportunities. Normal distance (20-30 km), better awareness of dangers/opportunities, may spot things others miss.";
+        default:
+            return "WEEKLY FOCUS: NORMAL TRAVEL - Standard travel pace and awareness.";
+    }
+};
+
 const getSystemInstruction = (player: Player, gameState: GameState) => `
 You are a text-based RPG game master for "Le Chemin de Rome" (The Road to Rome).
 Setting: Early Modern Europe (1450-1650) - an era of religious upheaval, warfare, plague, and transformation. The Renaissance, Reformation, Counter-Reformation, and devastating religious wars define this period.
@@ -158,6 +185,7 @@ The player is a ${player.gender} ${player.profession} named ${player.name}.
 ${player.gender === 'Female' ? `IMPORTANT: As a woman in Early Modern Europe, ${player.name} faces additional societal challenges and prejudices, but also has access to certain social networks (other women, religious communities) that men might not. Reflect historical reality while respecting the player's agency. Women travelers often disguised themselves as men, traveled in groups, or claimed religious purposes for protection.` : ''}
 ${getProfessionEventGuidance(player.profession)}
 ${getPartyStatusString(gameState.party)}
+${getWeeklyFocusGuidance(gameState.weeklyFocus)}
 Current game state:
 - Day: ${gameState.day}
 - Player Health: ${gameState.health}
@@ -200,8 +228,20 @@ Do not break character. Do not output anything other than the requested JSON.
 const getActionPrompt = (action: PlayerAction, profession: Profession): string => {
     switch (action) {
         case 'Travel':
-            return `The player chose to travel for a week. Generate a DRAMATIC and EXCITING outcome.
-Examples of good travel events:
+            return `The player chose to travel for a week. Generate the outcome.
+
+IMPORTANT INSTRUCTIONS:
+1. The 'description' should be SHORT (1 sentence) - either a summary of an uneventful week OR describe ONE major event if something dramatic happened.
+   - Uneventful week example: "The week passes without major incident."
+   - Major event example: "Armed bandits ambush your wagon, demanding everything you own!"
+
+2. The 'weekly_happenings' array should contain 2-4 brief bullet points (3-7 words each) describing what happened during the week:
+   - Examples: "Crossed a river at dawn", "Shared camp with pilgrims", "Oxen went lame, slowed progress", "Heavy rain for three days"
+   - Mix mundane and interesting happenings
+   - If there's a MAJOR dramatic event (bandits, plague, etc.), one of the bullets should reference it, and the description should focus on it
+   - If it's a quiet week, bullets should be more mundane travel details
+
+Examples of DRAMATIC events (only occasionally):
 - Bandit ambush demanding valuables
 - Encounter with plague refugees
 - Military checkpoint with suspicious soldiers
@@ -213,7 +253,6 @@ Examples of good travel events:
 - Finding an abandoned battlefield with supplies (and bodies)
 - Meeting a desperate alchemist fleeing the Inquisition
 
-Make it SPECIFIC and DRAMATIC. Avoid generic descriptions.
 The outcome must include 'distance_change' between 15 and 40 km.
 There's a small chance of encountering a traveling merchant.
 Consider food consumption and health impacts from the week's travel.`;
@@ -383,7 +422,12 @@ export const generateActionOutcome = async (player: Player, gameState: GameState
     const getFallbackOutcome = () => {
         if (action === 'Travel') {
             return {
-                description: "The road ahead is quiet. You make steady progress.",
+                description: "The week passes without major incident.",
+                weekly_happenings: [
+                    "Traveled through farmland",
+                    "Weather mostly fair",
+                    "Met other travelers on road"
+                ],
                 health_change: -2,
                 food_change: -5,
                 money_change: 0,
@@ -398,6 +442,7 @@ export const generateActionOutcome = async (player: Player, gameState: GameState
         }
         return {
             description: "You complete your task without incident.",
+            weekly_happenings: [],
             health_change: 0,
             food_change: 0,
             money_change: 0,
@@ -456,7 +501,6 @@ ${professionHint}
 The encounter should introduce a specific NPC character that the player meets. This person should:
 - Have a clear personality and motivation
 - Present an interesting situation or dilemma
-- Offer opportunities for conversation, trade, help, or conflict
 - Be historically appropriate for the setting
 
 Good encounter examples:
@@ -469,8 +513,31 @@ Good encounter examples:
 - A noble's servant looking for help finding their master who went missing
 - An old healer offering to trade remedies for supplies
 
-The NPC should feel like a real person with their own story, not just a random event.
-Provide 3-4 clear action options for the player.`;
+IMPORTANT: Provide EXACTLY 4 options in this specific order:
+
+1. FIGHT OPTION (type: "fight")
+   - Involves combat or physical confrontation
+   - Example: "Attack the bandit", "Draw your weapon", "Fight them off"
+   - Description should mention combat risks and potential loot
+
+2. MONEY OPTION (type: "money")
+   - Involves spending money (negative moneyCost) or earning money (positive moneyCost)
+   - Set moneyCost (e.g., -50 for bribe, +30 for reward)
+   - Set moneyDescription (e.g., "bribe", "toll", "payment for help", "reward")
+   - Example: "Pay the toll" (cost -20), "Accept their offer" (reward +30)
+
+3. SKILL CHECK OPTION (type: "skill")
+   - Uses one of the 6 skills: combat, diplomacy, survival, medicine, stealth, knowledge
+   - Set skill name and skillThreshold (30=easy, 50=medium, 70=hard)
+   - Example: "Persuade them to leave" (diplomacy, 50), "Sneak past" (stealth, 60), "Treat their wounds" (medicine, 40)
+   - Vary which skill is used based on the situation
+
+4. CUSTOM INPUT OPTION (type: "custom")
+   - Always label as "Say something else" or "Do something else"
+   - Description: "Speak or act freely - your words will be analyzed"
+   - This allows player to type custom response analyzed by AI
+
+The NPC should feel like a real person with their own story.`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
@@ -496,7 +563,8 @@ export const processEncounterAction = async (
     player: Player,
     gameState: GameState,
     encounter: Encounter,
-    action: string
+    optionIndex: number,
+    customInput?: string
 ) => {
     const getFallbackOutcome = () => ({
         description: "You part ways with the stranger and continue your journey.",
@@ -518,27 +586,51 @@ export const processEncounterAction = async (
         const systemInstruction = getSystemInstruction(player, gameState);
         const npcInfo = `NPC: ${encounter.npc.name}, a ${encounter.npc.type} who is ${encounter.npc.mood}. ${encounter.npc.description}`;
         const situationInfo = `Situation: ${encounter.situation}`;
+        const option = encounter.options[optionIndex];
+
+        let actionDescription = option.label;
+        let skillCheckResult = "";
+
+        // Handle skill check
+        if (option.type === 'skill' && option.skill && option.skillThreshold) {
+            const playerSkillValue = gameState.skills[option.skill];
+            const threshold = option.skillThreshold;
+            const randomBonus = Math.floor(Math.random() * 20) - 10; // -10 to +10 random factor
+            const totalValue = playerSkillValue + randomBonus;
+            const success = totalValue >= threshold;
+
+            skillCheckResult = `SKILL CHECK: ${option.skill} (Player: ${playerSkillValue}, Threshold: ${threshold}, Roll: ${randomBonus > 0 ? '+' : ''}${randomBonus}, Total: ${totalValue}) - ${success ? 'SUCCESS' : 'FAILURE'}`;
+            actionDescription = `${option.label} (${success ? 'succeeded' : 'failed'})`;
+        }
+
+        // Handle custom input
+        if (option.type === 'custom' && customInput) {
+            actionDescription = `Custom action: "${customInput}"`;
+        }
+
+        // Handle money transaction
+        let moneyNote = "";
+        if (option.type === 'money' && option.moneyCost) {
+            moneyNote = `MONEY TRANSACTION: ${option.moneyCost < 0 ? 'Cost' : 'Reward'} of ${Math.abs(option.moneyCost)} coins (${option.moneyDescription})`;
+        }
 
         const prompt = `The player encountered ${npcInfo}
 ${situationInfo}
 
-The player chose to: "${action}"
+The player chose: "${actionDescription}"
+${skillCheckResult}
+${moneyNote}
 
 Generate an outcome that:
 - Reflects the NPC's personality, mood, and type
-- Is appropriate for the chosen action (${action})
+- Is appropriate for the chosen action
+- ${skillCheckResult ? 'Takes into account whether the skill check succeeded or failed. Success = positive outcome, Failure = negative outcome or complications.' : ''}
+- ${moneyNote ? `Includes the money transaction in the outcome (set money_change to ${option.moneyCost}).` : ''}
+- ${option.type === 'fight' ? 'Involves combat. Player may take damage but could gain loot. Consider player combat skill.' : ''}
 - Could involve rewards, consequences, or neutral results
 - May affect health, resources, inventory, or conditions
 - Should feel meaningful and consequential
 - Keep description to 2-3 sentences
-
-Action-specific guidance:
-- talk: Learn information, build rapport, or trigger conversation
-- help: Provide aid (costs resources but may gain reputation/rewards)
-- trade: Exchange goods or money
-- fight: Combat with potential for injury or loot
-- flee: Escape quickly, possible pursuit or consequences
-- ignore: Move on, may miss opportunities or anger the NPC
 
 Generate an appropriate outcome based on the player's choice.`;
 
