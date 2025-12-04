@@ -1,20 +1,124 @@
 import { Profession, CharacterStats, HuntableAnimal, Gender } from './types';
 
-export const TOTAL_DISTANCE_TO_ROME = 1400; // km, approximate from central France
+export const TOTAL_DISTANCE_TO_ROME = 1400; // km, approximate from central France (deprecated - use STARTING_CITIES)
 
-// Starting Cities in France (Early Modern Period)
-export const FRENCH_STARTING_CITIES = [
-  'Paris',
-  'Lyon',
-  'Marseille',
-  'Bordeaux',
-  'Toulouse',
-  'Rouen',
-  'Orléans',
-  'Tours',
-  'Dijon',
-  'Reims',
+// Starting Cities across Europe (excluding Italy) with distances to Rome in km
+export interface StartingCity {
+  name: string;
+  region: string;
+  distance: number;
+  liege: string; // Top political entity ruling this location during the time period (default, may vary by year)
+}
+
+// Get historically accurate political entity based on location and year
+export function getLiegeForYear(city: StartingCity, year: number): string {
+  // British Isles - England & Scotland unite in 1707
+  if ((city.region === 'England' || city.region === 'Scotland') && year >= 1707) {
+    return 'Kingdom of Great Britain';
+  }
+
+  // Spain - Castile and Aragon unite in 1516
+  if ((city.liege === 'Kingdom of Castile' || city.liege === 'Crown of Aragon') && year >= 1516) {
+    return 'Spanish Empire';
+  }
+
+  // Portugal - under Spanish control 1580-1640
+  if (city.liege === 'Kingdom of Portugal') {
+    if (year >= 1580 && year < 1640) {
+      return 'Spanish Empire (Portuguese Rule)';
+    }
+  }
+
+  // Dutch Republic - independence from Spain in 1581
+  if (city.region === 'Netherlands') {
+    if (year < 1581) {
+      return 'Spanish Netherlands';
+    }
+  }
+
+  // Brandenburg becomes Kingdom of Prussia in 1701
+  if (city.liege === 'Brandenburg-Prussia' && year >= 1701) {
+    return 'Kingdom of Prussia';
+  }
+
+  // Default: return the base liege
+  return city.liege;
+}
+
+export const STARTING_CITIES: StartingCity[] = [
+  // France
+  { name: 'Paris', region: 'France', distance: 1400, liege: 'Kingdom of France' },
+  { name: 'Lyon', region: 'France', distance: 700, liege: 'Kingdom of France' },
+  { name: 'Marseille', region: 'France', distance: 500, liege: 'Kingdom of France' },
+  { name: 'Bordeaux', region: 'France', distance: 1300, liege: 'Kingdom of France' },
+  { name: 'Toulouse', region: 'France', distance: 1100, liege: 'Kingdom of France' },
+  { name: 'Rouen', region: 'France', distance: 1550, liege: 'Kingdom of France' },
+  { name: 'Orléans', region: 'France', distance: 1350, liege: 'Kingdom of France' },
+  { name: 'Strasbourg', region: 'France', distance: 900, liege: 'Holy Roman Empire' },
+  { name: 'Dijon', region: 'France', distance: 850, liege: 'Kingdom of France' },
+  { name: 'Reims', region: 'France', distance: 1350, liege: 'Kingdom of France' },
+
+  // British Isles
+  { name: 'London', region: 'England', distance: 1850, liege: 'Kingdom of England' },
+  { name: 'York', region: 'England', distance: 2000, liege: 'Kingdom of England' },
+  { name: 'Bristol', region: 'England', distance: 1900, liege: 'Kingdom of England' },
+  { name: 'Edinburgh', region: 'Scotland', distance: 2300, liege: 'Kingdom of Scotland' },
+  { name: 'Dublin', region: 'Ireland', distance: 2400, liege: 'Kingdom of Ireland' },
+  { name: 'Glasgow', region: 'Scotland', distance: 2350, liege: 'Kingdom of Scotland' },
+
+  // Iberian Peninsula
+  { name: 'Madrid', region: 'Spain', distance: 1700, liege: 'Kingdom of Castile' },
+  { name: 'Barcelona', region: 'Spain', distance: 1000, liege: 'Crown of Aragon' },
+  { name: 'Seville', region: 'Spain', distance: 2000, liege: 'Kingdom of Castile' },
+  { name: 'Valencia', region: 'Spain', distance: 1150, liege: 'Crown of Aragon' },
+  { name: 'Lisbon', region: 'Portugal', distance: 2300, liege: 'Kingdom of Portugal' },
+  { name: 'Porto', region: 'Portugal', distance: 2200, liege: 'Kingdom of Portugal' },
+  { name: 'Zaragoza', region: 'Spain', distance: 1300, liege: 'Crown of Aragon' },
+
+  // Low Countries
+  { name: 'Amsterdam', region: 'Netherlands', distance: 1650, liege: 'Dutch Republic' },
+  { name: 'Brussels', region: 'Spanish Netherlands', distance: 1500, liege: 'Spanish Empire' },
+  { name: 'Antwerp', region: 'Spanish Netherlands', distance: 1550, liege: 'Spanish Empire' },
+  { name: 'The Hague', region: 'Netherlands', distance: 1650, liege: 'Dutch Republic' },
+
+  // Holy Roman Empire / German States
+  { name: 'Vienna', region: 'Austria', distance: 850, liege: 'Habsburg Monarchy' },
+  { name: 'Prague', region: 'Bohemia', distance: 1100, liege: 'Kingdom of Bohemia (HRE)' },
+  { name: 'Munich', region: 'Bavaria', distance: 700, liege: 'Duchy of Bavaria (HRE)' },
+  { name: 'Berlin', region: 'Brandenburg', distance: 1650, liege: 'Brandenburg-Prussia' },
+  { name: 'Hamburg', region: 'Free City', distance: 1850, liege: 'Free Imperial City (HRE)' },
+  { name: 'Cologne', region: 'Archbishopric of Cologne', distance: 1450, liege: 'Electorate of Cologne (HRE)' },
+  { name: 'Frankfurt', region: 'Free City', distance: 1250, liege: 'Free Imperial City (HRE)' },
+  { name: 'Nuremberg', region: 'Free City', distance: 1000, liege: 'Free Imperial City (HRE)' },
+  { name: 'Augsburg', region: 'Free City', distance: 850, liege: 'Free Imperial City (HRE)' },
+  { name: 'Dresden', region: 'Saxony', distance: 1350, liege: 'Electorate of Saxony (HRE)' },
+
+  // Switzerland
+  { name: 'Geneva', region: 'Switzerland', distance: 650, liege: 'Old Swiss Confederacy' },
+  { name: 'Zurich', region: 'Switzerland', distance: 750, liege: 'Old Swiss Confederacy' },
+  { name: 'Basel', region: 'Switzerland', distance: 900, liege: 'Old Swiss Confederacy' },
+  { name: 'Bern', region: 'Switzerland', distance: 800, liege: 'Old Swiss Confederacy' },
+
+  // Scandinavia
+  { name: 'Stockholm', region: 'Sweden', distance: 2400, liege: 'Kingdom of Sweden' },
+  { name: 'Copenhagen', region: 'Denmark', distance: 1850, liege: 'Kingdom of Denmark-Norway' },
+  { name: 'Oslo', region: 'Norway', distance: 2450, liege: 'Kingdom of Denmark-Norway' },
+
+  // Eastern Europe
+  { name: 'Warsaw', region: 'Poland', distance: 1550, liege: 'Polish-Lithuanian Commonwealth' },
+  { name: 'Krakow', region: 'Poland', distance: 1200, liege: 'Polish-Lithuanian Commonwealth' },
+  { name: 'Budapest', region: 'Hungary', distance: 950, liege: 'Kingdom of Hungary (Habsburg)' },
+  { name: 'Bratislava', region: 'Hungary', distance: 900, liege: 'Kingdom of Hungary (Habsburg)' },
+
+  // Balkans (northern areas)
+  { name: 'Dubrovnik', region: 'Dalmatia', distance: 600, liege: 'Republic of Ragusa' },
+  { name: 'Split', region: 'Dalmatia', distance: 550, liege: 'Republic of Venice' },
 ];
+
+// Legacy - kept for backwards compatibility
+export const FRENCH_STARTING_CITIES = STARTING_CITIES
+  .filter(city => city.region === 'France')
+  .map(city => city.name);
 
 // Gender symbols
 export const GENDER_SYMBOLS = {
@@ -42,6 +146,8 @@ export const FEMALE_PROFESSIONS = [
   Profession.NobleWoman,
 ];
 
+// Legacy route checkpoints (for Paris to Rome - deprecated)
+// Now dynamically generated based on starting city
 export const ROUTE_CHECKPOINTS = [
     { name: 'Dijon', distance: 300 },
     { name: 'Lyon', distance: 450 },
@@ -53,12 +159,40 @@ export const ROUTE_CHECKPOINTS = [
     { name: 'Siena', distance: 1275 },
 ];
 
+// Generate route checkpoints based on starting city
+export const generateRouteCheckpoints = (startingCity: StartingCity): Array<{ name: string; distance: number }> => {
+  const totalDistance = startingCity.distance;
+  const checkpoints: Array<{ name: string; distance: number }> = [];
+
+  // Generate 5-8 checkpoints evenly spaced along the route
+  const numCheckpoints = Math.floor(totalDistance / 200) + 3; // Roughly every 200km
+  const spacing = totalDistance / (numCheckpoints + 1);
+
+  // Generic waypoint cities based on region and route
+  const waypointPool = [
+    'a trading post', 'a fortified town', 'a monastery', 'a market town',
+    'a river crossing', 'a mountain pass', 'a pilgrimage site', 'a walled city',
+    'a bishop\'s seat', 'a free city', 'an abbey', 'a frontier garrison'
+  ];
+
+  for (let i = 1; i <= numCheckpoints; i++) {
+    const distance = Math.round(spacing * i);
+    const waypointName = waypointPool[i % waypointPool.length];
+    checkpoints.push({
+      name: waypointName,
+      distance: distance
+    });
+  }
+
+  return checkpoints;
+};
+
 export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Merchant]: {
     money: 500,
     food: 100,
     oxen: 2,
-    description: "Starts with more money and gets a 15% bonus on sales and 15% discount on purchases at markets.",
+    description: "Trader seeking new markets and trade opportunities in Rome. Gets a 15% bonus on sales and 15% discount on purchases at markets.",
     inventory: {
       'Fine Silks': 2,
       'Spices': 3,
@@ -71,8 +205,8 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Priest]: {
     money: 250,
     food: 120,
-    oxen: 1,
-    description: "Respected by others, may receive help more easily. Can craft Holy Water.",
+    oxen: 0,
+    description: "Man of God seeking spiritual renewal in Rome. Respected by others and may receive help more easily. Can craft Holy Water.",
     inventory: {
       'Holy Symbol': 1,
       'Bandages': 5,
@@ -85,7 +219,7 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
     money: 300,
     food: 80,
     oxen: 2,
-    description: "Hardy and resourceful, better at handling threats. Receives +10% bonus to hunting success.",
+    description: "Veteran warrior traveling to Rome for work or escaping conflict. Hardy and resourceful, better at handling threats. Receives +10% bonus to hunting success.",
     inventory: {
       'Sharpening Stone': 1,
       'Jerky': 10,
@@ -99,7 +233,7 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
       money: 350,
       food: 100,
       oxen: 2,
-      description: "Can repair the wagon using scrap metal while camped. Can craft repair kits.",
+      description: "Skilled craftsman seeking better opportunities in Rome. Can repair wagons using scrap metal while camped. Can craft repair kits.",
       inventory: {
         'Scrap Metal': 5,
         'Hammer': 1,
@@ -112,8 +246,8 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Scholar]: {
       money: 200,
       food: 100,
-      oxen: 1,
-      description: "Knowledgeable, can read ancient texts and maps. Gains insight from books.",
+      oxen: 0,
+      description: "Learned scholar traveling to study ancient texts and Roman knowledge. Can read ancient texts and maps. Gains insight from books.",
       inventory: {
         'Scholarly Tome': 1,
         'Ink & Quill': 3,
@@ -126,8 +260,8 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Apothecary]: {
       money: 275,
       food: 110,
-      oxen: 1,
-      description: "Can forage for medicinal herbs while camped. Expert in healing remedies.",
+      oxen: 0,
+      description: "Healer traveling to Rome to study medical knowledge. Can forage for medicinal herbs while camped. Expert in healing remedies.",
       inventory: {
         'Medicinal Herbs': 5,
         'Mortar and Pestle': 1,
@@ -141,7 +275,7 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
       money: 2000,
       food: 200,
       oxen: 4,
-      description: "Of noble blood and exceptional wealth. Travels with an entourage and receives preferential treatment. Extremely rare.",
+      description: "Noble of exceptional wealth and privilege making a grand journey to Rome. Travels with an entourage and receives preferential treatment. Extremely rare.",
       inventory: {
         'Fine Silks': 5,
         'Wine': 10,
@@ -160,8 +294,8 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Nun]: {
     money: 200,
     food: 110,
-    oxen: 1,
-    description: "Devoted to God, respected in religious circles. Can provide spiritual guidance and has access to church resources.",
+    oxen: 0,
+    description: "Sister devoted to God, making a sacred journey to Rome. Respected in religious circles. Can provide spiritual guidance and has access to church resources.",
     inventory: {
       'Holy Symbol': 1,
       'Prayer Book': 1,
@@ -175,8 +309,8 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Midwife]: {
     money: 250,
     food: 100,
-    oxen: 1,
-    description: "Skilled in healing and childbirth. Trusted in communities for medical knowledge and herbal remedies.",
+    oxen: 0,
+    description: "Healer traveling to Rome to learn advanced medical practices. Skilled in healing and childbirth. Trusted in communities for medical knowledge and herbal remedies.",
     inventory: {
       'Bandages': 6,
       'Medicinal Herbs': 4,
@@ -189,8 +323,8 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Herbalist]: {
     money: 260,
     food: 105,
-    oxen: 1,
-    description: "Expert in plants and natural remedies. Can forage for medicinal herbs and craft healing items.",
+    oxen: 0,
+    description: "Healer traveling to Rome to discover rare herbs and remedies. Expert in plants and natural remedies. Can forage for medicinal herbs and craft healing items.",
     inventory: {
       'Medicinal Herbs': 6,
       'Mortar and Pestle': 1,
@@ -205,7 +339,7 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
     money: 1500,
     food: 180,
     oxen: 3,
-    description: "Of high birth with considerable wealth and influence. Commands respect and can leverage social connections.",
+    description: "Noblewoman of high birth making a grand journey to Rome. Commands respect and can leverage social connections.",
     inventory: {
       'Fine Silks': 4,
       'Wine': 8,
@@ -225,7 +359,7 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
     money: 480,
     food: 95,
     oxen: 2,
-    description: "Savvy trader who built her business against societal odds. Gets a 15% bonus on sales and 15% discount on purchases at markets.",
+    description: "Savvy trader seeking new markets and trade opportunities in Rome. Built her business against societal odds. Gets a 15% bonus on sales and 15% discount on purchases at markets.",
     inventory: {
       'Fine Silks': 2,
       'Spices': 2,
@@ -239,8 +373,8 @@ export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Scholar_F]: {
     money: 190,
     food: 95,
-    oxen: 1,
-    description: "Rare woman of letters, exceptionally educated. Faces societal barriers but possesses valuable knowledge.",
+    oxen: 0,
+    description: "Rare woman of letters traveling to study ancient texts and Roman knowledge. Exceptionally educated. Faces societal barriers but possesses valuable knowledge.",
     inventory: {
       'Scholarly Tome': 1,
       'Ink & Quill': 3,
@@ -697,7 +831,3 @@ export const FRENCH_LAST_NAMES = [
 ];
 
 export const NOBLE_TITLES = ["de", "du", "le", "la"];
-
-export const STARTING_CITIES = [
-    "Paris", "Orléans", "Tours", "Bourges", "Nevers", "Moulins", "Clermont", "Roanne"
-];

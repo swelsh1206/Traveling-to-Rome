@@ -1,4 +1,4 @@
-// Date utilities for Early Modern Europe (1450-1650)
+// Date utilities for Early Modern Europe (1450-1800)
 
 const MONTHS = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -26,9 +26,9 @@ export const getDaysInMonth = (month: number, year: number): number => {
     return DAYS_IN_MONTH[month - 1];
 };
 
-// Generate a random starting date within 1450-1650, spring season
+// Generate a random starting date within 1450-1800, spring season
 export const generateRandomStartDate = (): { year: number; month: number; dayOfMonth: number } => {
-    const year = Math.floor(Math.random() * (1650 - 1450 + 1)) + 1450;
+    const year = Math.floor(Math.random() * (1800 - 1450 + 1)) + 1450;
     // Spring months: March (3), April (4), May (5)
     const month = Math.floor(Math.random() * 3) + 3;
     const daysInMonth = getDaysInMonth(month, year);
@@ -66,20 +66,24 @@ export const formatDate = (day: number, month: number, year: number): string => 
     return `${day} ${monthName}, Anno Domini ${year}`;
 };
 
-// Get the historical context for a specific year
+// Get the historical context for a specific year (Based on Merry Wiesner-Hanks' Early Modern Europe)
 export const getHistoricalContext = (year: number): string => {
     if (year >= 1450 && year < 1500) {
-        return "Late Medieval / Early Renaissance period. Printing press spreading knowledge.";
-    } else if (year >= 1500 && year < 1517) {
-        return "High Renaissance. Artistic and cultural flourishing across Europe.";
-    } else if (year >= 1517 && year < 1555) {
-        return "Protestant Reformation era. Martin Luther's challenge to the Church.";
-    } else if (year >= 1555 && year < 1618) {
-        return "Age of Religious Conflict. Peace of Augsburg signed but tensions remain.";
+        return "Era of demographic recovery and economic expansion. Printing transforms information exchange; Italian city-states dominate Mediterranean trade.";
+    } else if (year >= 1500 && year < 1520) {
+        return "Commercial revolution and global exploration. New trade routes challenge traditional Mediterranean dominance; urban growth accelerates.";
+    } else if (year >= 1520 && year < 1560) {
+        return "Religious fragmentation and social upheaval. Protestant movements divide Western Christianity; peasant rebellions challenge social hierarchy.";
+    } else if (year >= 1560 && year < 1618) {
+        return "Confessional tensions and state formation. Religious divisions harden; rulers consolidate power through bureaucracy and confessional identity.";
     } else if (year >= 1618 && year <= 1648) {
-        return "The Thirty Years' War. Devastating religious conflict ravaging Europe.";
-    } else if (year > 1648 && year <= 1650) {
-        return "Post-Westphalia. Europe recovering from decades of war.";
+        return "Thirty Years' War devastates Central Europe. Military conflict, famine, and disease cause demographic catastrophe; soldiers often unpaid.";
+    } else if (year >= 1649 && year < 1700) {
+        return "Period of state building and mercantilism. European powers expand overseas colonies; absolutist monarchies centralize authority.";
+    } else if (year >= 1700 && year < 1750) {
+        return "Growth of consumer culture and Atlantic economy. Coffee houses spread; colonial trade enriches European merchant classes.";
+    } else if (year >= 1750 && year <= 1800) {
+        return "Age of Enlightenment and agrarian change. Population growth; proto-industrialization transforms rural economies; political challenges emerge.";
     }
     return "Early Modern Europe";
 };

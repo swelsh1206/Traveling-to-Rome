@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { INITIAL_HEALTH } from '../constants';
-import { GamePhase, RationLevel, WeeklyFocus } from '../types';
+import { GamePhase, RationLevel, WeeklyFocus, Weather, Terrain } from '../types';
 import Tooltip from './Tooltip';
 import { STAT_TOOLTIPS } from '../tooltipDescriptions';
 
@@ -11,7 +11,12 @@ interface SuppliesBarProps {
   food: number;
   money: number;
   oxen: number;
+  ammunition: number;
+  spareParts: number;
+  hasWagon: boolean;
   location: string | null;
+  weather: Weather;
+  terrain: Terrain;
   rationLevel: RationLevel;
   onRationChange?: (level: RationLevel) => void;
   weeklyFocus: WeeklyFocus;
@@ -56,7 +61,7 @@ const StatDisplay: React.FC<{ icon: string; value: string | number; label: strin
 };
 
 
-const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food, money, oxen, location, rationLevel, onRationChange, weeklyFocus, onWeeklyFocusChange }) => {
+const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food, money, oxen, ammunition, spareParts, hasWagon, location, weather, terrain, rationLevel, onRationChange, weeklyFocus, onWeeklyFocusChange }) => {
   const getPhaseInfo = () => {
     switch(phase) {
         case 'traveling':
@@ -101,9 +106,43 @@ const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food,
     }
   };
 
+  const getWeatherInfo = () => {
+    switch(weather) {
+      case 'Clear':
+        return { icon: '☀️', color: 'text-yellow-300', bg: 'bg-yellow-500/10' };
+      case 'Rain':
+        return { icon: '🌧️', color: 'text-blue-300', bg: 'bg-blue-500/20' };
+      case 'Storm':
+        return { icon: '⛈️', color: 'text-purple-300', bg: 'bg-purple-500/20' };
+      case 'Snow':
+        return { icon: '❄️', color: 'text-cyan-200', bg: 'bg-cyan-500/20' };
+      case 'Fog':
+        return { icon: '🌫️', color: 'text-gray-300', bg: 'bg-gray-500/20' };
+    }
+  };
+
+  const getTerrainInfo = () => {
+    switch(terrain) {
+      case 'Plains':
+        return { icon: '🌾', text: 'Plains' };
+      case 'Forest':
+        return { icon: '🌲', text: 'Forest' };
+      case 'Mountains':
+        return { icon: '⛰️', text: 'Mountains' };
+      case 'Hills':
+        return { icon: '⛰️', text: 'Hills' };
+      case 'River Valley':
+        return { icon: '🏞️', text: 'River Valley' };
+      case 'Farmland':
+        return { icon: '🌾', text: 'Farmland' };
+    }
+  };
+
   const phaseInfo = getPhaseInfo();
   const rationInfo = getRationInfo();
   const focusInfo = getWeeklyFocusInfo();
+  const weatherInfo = getWeatherInfo();
+  const terrainInfo = getTerrainInfo();
 
   const cycleRationLevel = () => {
     if (!onRationChange) return;
@@ -127,58 +166,105 @@ const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food,
   };
 
   return (
-    <div className={`w-full bg-gradient-to-r from-stone-900/70 via-stone-800/70 to-stone-900/70 border-2 ${getBorderColor()} p-2 flex items-center px-4 rounded-lg shadow-lg transition-all duration-500`}>
-        {/* Left stats */}
-        <div className="flex items-center space-x-4 flex-1">
-            <StatDisplay icon="❤️" value={`${health}/${INITIAL_HEALTH}`} label="Health" currentValue={health} tooltip={STAT_TOOLTIPS.health} />
-            <StatDisplay icon="⚡" value={stamina} label="Stamina" currentValue={stamina} tooltip={STAT_TOOLTIPS.stamina} />
-            <StatDisplay icon="🥖" value={food} label="Food" currentValue={food} tooltip={STAT_TOOLTIPS.food} />
-
-            {/* Ration Level Indicator */}
-            <Tooltip content={rationInfo.tooltip}>
-              <button
-                onClick={cycleRationLevel}
-                className="flex items-center space-x-1 px-2 py-1 bg-stone-800/50 border border-stone-600 rounded-lg hover:bg-stone-700/50 hover:border-stone-500 transition-all cursor-pointer"
-              >
-                <span className="text-sm">{rationInfo.icon}</span>
-                <span className={`text-xs font-semibold ${rationInfo.color}`}>{rationInfo.text}</span>
-              </button>
-            </Tooltip>
-        </div>
-
-        {/* Center status */}
-        <div className="flex flex-col items-center justify-center flex-1">
-            <h3 className={`text-xl font-bold tracking-widest transition-colors duration-500 ${phaseInfo.color} text-shadow-glow whitespace-nowrap`}>
-                {phaseInfo.text}
-            </h3>
-            {/* Weekly Focus Selector - only show while traveling */}
-            {phase === 'traveling' && (
-              <Tooltip content={focusInfo.tooltip}>
-                <div className="flex items-center space-x-1 mt-1">
-                  <span className="text-xs text-gray-400">Focus:</span>
-                  <select
-                    value={weeklyFocus}
-                    onChange={handleFocusChange}
-                    className="text-xs font-semibold bg-stone-800/50 border border-stone-600 rounded px-1 py-0.5 cursor-pointer hover:bg-stone-700/50 hover:border-stone-500 transition-all focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    style={{ color: focusInfo.color.replace('text-', '') }}
-                  >
-                    <option value="normal">🚶 Normal</option>
-                    <option value="cautious">🛡️ Cautious</option>
-                    <option value="fast">⚡ Fast</option>
-                    <option value="forage">🌾 Forage</option>
-                    <option value="bond">💕 Bond</option>
-                    <option value="vigilant">👁️ Vigilant</option>
-                  </select>
+    <div className={`w-full bg-gradient-to-r from-stone-900/70 via-stone-800/70 to-stone-900/70 border-2 ${getBorderColor()} rounded-lg shadow-lg transition-all duration-500 ${weatherInfo.bg}`}>
+        {/* Main Status Bar */}
+        <div className="flex items-center px-4 py-2">
+            {/* Character Stats Group */}
+            <div className="flex items-center space-x-4 flex-1">
+                <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-400 uppercase tracking-wide">Vitals</span>
+                    <div className="flex items-center space-x-2 bg-stone-800/50 px-2 py-1 rounded border border-stone-600">
+                        <StatDisplay icon="❤️" value={`${health}`} label="Health" currentValue={health} tooltip={STAT_TOOLTIPS.health} />
+                        <span className="text-gray-600">|</span>
+                        <StatDisplay icon="⚡" value={stamina} label="Stamina" currentValue={stamina} tooltip={STAT_TOOLTIPS.stamina} />
+                    </div>
                 </div>
-              </Tooltip>
-            )}
+            </div>
+
+            {/* Center - Phase Status */}
+            <div className="flex flex-col items-center justify-center min-w-[280px] mx-4">
+                <h3 className={`text-2xl font-bold tracking-widest transition-colors duration-500 ${phaseInfo.color} text-shadow-glow whitespace-nowrap`}>
+                    {phaseInfo.text}
+                </h3>
+                {/* Weather and Terrain - Compact */}
+                {phase === 'traveling' && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Tooltip content={`Weather: ${weather}. Affects travel speed and safety.`}>
+                      <span className={`text-base ${weatherInfo.color}`}>{weatherInfo.icon}</span>
+                    </Tooltip>
+                    <span className="text-gray-600 text-xs">•</span>
+                    <Tooltip content={`Terrain: ${terrain}. Affects travel difficulty and encounters.`}>
+                      <span className="text-base">{terrainInfo.icon}</span>
+                    </Tooltip>
+                  </div>
+                )}
+            </div>
+
+            {/* Resources Group */}
+            <div className="flex items-center space-x-4 flex-1 justify-end">
+                <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-400 uppercase tracking-wide">Resources</span>
+                    <div className="flex items-center space-x-2 bg-stone-800/50 px-2 py-1 rounded border border-stone-600">
+                        <StatDisplay icon="💰" value={money} label="Money" currentValue={money} tooltip={STAT_TOOLTIPS.money} />
+                        <span className="text-gray-600">|</span>
+                        <StatDisplay icon="🥖" value={food} label="Food" currentValue={food} tooltip={STAT_TOOLTIPS.food} />
+                        {oxen > 0 && (
+                            <>
+                                <span className="text-gray-600">|</span>
+                                <StatDisplay icon="🐂" value={oxen} label="Oxen" currentValue={oxen} tooltip={STAT_TOOLTIPS.oxen} />
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
 
-        {/* Right stats */}
-        <div className="flex items-center space-x-4 flex-1 justify-end">
-            <StatDisplay icon="💰" value={money} label="Money" currentValue={money} tooltip={STAT_TOOLTIPS.money} />
-            <StatDisplay icon="🐂" value={oxen} label="Oxen" currentValue={oxen} tooltip={STAT_TOOLTIPS.oxen} />
-        </div>
+        {/* Secondary Info Bar - Only when traveling */}
+        {phase === 'traveling' && (
+            <div className="flex items-center justify-between px-4 py-1.5 border-t border-stone-700/50 bg-stone-900/30">
+                {/* Ration Level */}
+                <Tooltip content={rationInfo.tooltip}>
+                  <button
+                    onClick={cycleRationLevel}
+                    className="flex items-center space-x-1.5 px-2 py-1 bg-stone-800/50 border border-stone-600 rounded hover:bg-stone-700/50 hover:border-stone-500 transition-all cursor-pointer"
+                  >
+                    <span className="text-sm">{rationInfo.icon}</span>
+                    <span className={`text-xs font-semibold ${rationInfo.color}`}>{rationInfo.text}</span>
+                  </button>
+                </Tooltip>
+
+                {/* Weekly Focus Selector */}
+                <Tooltip content={focusInfo.tooltip}>
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-xs text-gray-400">Weekly Focus:</span>
+                    <select
+                      value={weeklyFocus}
+                      onChange={handleFocusChange}
+                      className="text-xs font-semibold bg-stone-800/50 border border-stone-600 rounded px-2 py-1 cursor-pointer hover:bg-stone-700/50 hover:border-stone-500 transition-all focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      style={{ color: focusInfo.color.replace('text-', '') }}
+                    >
+                      <option value="normal">🚶 Normal</option>
+                      <option value="cautious">🛡️ Cautious</option>
+                      <option value="fast">⚡ Fast</option>
+                      <option value="forage">🌾 Forage</option>
+                      <option value="bond">💕 Bond</option>
+                      <option value="vigilant">👁️ Vigilant</option>
+                    </select>
+                  </div>
+                </Tooltip>
+
+                {/* Combat Resources */}
+                <div className="flex items-center space-x-2 bg-stone-800/50 px-2 py-1 rounded border border-stone-600">
+                    <StatDisplay icon="🔫" value={ammunition} label="Ammunition" currentValue={ammunition} tooltip="Ammunition for hunting. Required to hunt animals." />
+                    {hasWagon && (
+                        <>
+                            <span className="text-gray-600">|</span>
+                            <StatDisplay icon="🔧" value={spareParts} label="Parts" currentValue={spareParts} tooltip="Spare parts for wagon repairs. Required to fix a broken wagon." />
+                        </>
+                    )}
+                </div>
+            </div>
+        )}
     </div>
   );
 };

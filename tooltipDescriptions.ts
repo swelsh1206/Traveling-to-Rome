@@ -6,8 +6,10 @@ export const STAT_TOOLTIPS = {
   money: "Coins for trade. Use to purchase supplies, food, and equipment at markets. Earn through selling trade goods or completing tasks.",
   oxen: "Draft animals pulling your wagon. More oxen means faster, safer travel. They can die from overwork, starvation, or accidents.",
   stamina: "Energy for non-travel actions. Consumed by hunting, scouting, crafting, and foraging. Restores based on ration level when you travel.",
-  distanceToRome: "Kilometers remaining to reach Rome. The journey totals 1,400 km through France, Switzerland, and Italy.",
-  distanceTraveled: "How far you've come from your starting point in France. Track your progress toward the eternal city.",
+  ammunition: "Arrows, bolts, and shot for hunting. Required to hunt animals for food. Can be purchased at markets or crafted with proper tools.",
+  spareParts: "Materials for wagon repairs. Used to fix broken wagons on the road. Essential if you have a wagon. Blacksmiths can craft more.",
+  distanceToRome: "Kilometers remaining to reach Rome.",
+  distanceTraveled: "How far you've come from your starting point. Track your progress toward the eternal city.",
 };
 
 export const CONDITION_TOOLTIPS = {
@@ -85,4 +87,34 @@ export const PROFESSION_TOOLTIPS = {
   "Noble Woman": "Woman of high birth with considerable wealth and influence. Commands respect despite societal barriers. Receives preferential treatment. Very rare.",
   "Merchant (Female)": "Savvy trader who built her business against societal odds. Gets 15% better prices when buying and selling at markets. Starts with trade goods and money.",
   "Scholar (Female)": "Rare woman of letters, exceptionally educated. Faces societal barriers but possesses valuable knowledge. Can decipher texts and write letters. Starts with books.",
+};
+
+export const POLITICAL_ENTITY_TOOLTIPS: Record<string, string> = {
+  "Kingdom of France": "Powerful centralized monarchy ruling most of France. One of the great powers of Europe, frequently at war with the Habsburgs and England.",
+  "Kingdom of England": "Island kingdom (until 1707). Major naval power engaged in the Hundred Years' War, Wars of the Roses, and rivalry with France and Spain.",
+  "Kingdom of Great Britain": "Union of England and Scotland (1707-1800). Emerging as the world's dominant maritime and colonial power.",
+  "Kingdom of Scotland": "Independent kingdom in northern Britain (until 1707 union with England). Frequent tensions with England and alliance with France.",
+  "Kingdom of Ireland": "Under English control but with distinct identity. Site of religious conflicts and resistance to English rule.",
+  "Kingdom of Castile": "Largest kingdom in Iberia. United with Aragon to form Spain. Major colonial power in the Americas.",
+  "Crown of Aragon": "Mediterranean trading power including Aragon, Catalonia, and Valencia. United with Castile to form Spain in 1516.",
+  "Spanish Empire": "Unified Spain under Habsburg and later Bourbon rule. Most powerful empire of the 16th century with vast American colonies.",
+  "Kingdom of Portugal": "Independent maritime empire with colonies in Brazil, Africa, and Asia. Unified with Spain 1580-1640, then independent again.",
+  "Dutch Republic": "Independent federation of seven provinces (1581-1795). Major trading power known for religious tolerance and republican government.",
+  "Spanish Netherlands": "Habsburg-controlled Low Countries (modern Belgium). Catholic stronghold and frequent battleground in European wars.",
+  "Habsburg Monarchy": "Austrian Empire ruled by the Habsburg dynasty. Major power controlling Austria, Bohemia, Hungary, and parts of Italy.",
+  "Kingdom of Bohemia (HRE)": "Kingdom within the Holy Roman Empire centered on Prague. Site of major religious conflicts including the Hussite Wars.",
+  "Duchy of Bavaria (HRE)": "Catholic duchy in southern Germany. Major player in the Holy Roman Empire and the Thirty Years' War.",
+  "Brandenburg-Prussia": "Rising military power in northern Germany. Electorate of Brandenburg united with Duchy of Prussia, became Kingdom of Prussia in 1701.",
+  "Kingdom of Prussia": "Powerful militaristic kingdom (from 1701). Would eventually unite Germany under Prussian leadership in 1871.",
+  "Free Imperial City (HRE)": "Self-governing city with direct allegiance to the Holy Roman Emperor. Enjoyed considerable autonomy and prosperity through trade.",
+  "Electorate of Cologne (HRE)": "Archbishop-ruled territory with right to elect the Holy Roman Emperor. Important ecclesiastical and political power.",
+  "Electorate of Saxony (HRE)": "Powerful German state with right to elect the Emperor. Major player in Protestant Reformation and German politics.",
+  "Holy Roman Empire": "Loose confederation of hundreds of German and Italian states. Neither holy, Roman, nor an empire - but culturally influential until 1806.",
+  "Old Swiss Confederacy": "Alliance of independent cantons defending mutual independence. Renowned for military prowess and mercenary soldiers.",
+  "Kingdom of Sweden": "Dominant Baltic power, especially during the 17th century. Major player in the Thirty Years' War under Gustavus Adolphus.",
+  "Kingdom of Denmark-Norway": "Personal union of two kingdoms under one monarch. Major Baltic naval power controlling key trade routes.",
+  "Polish-Lithuanian Commonwealth": "Vast elective monarchy covering Poland, Lithuania, and Ukraine. Known for religious tolerance and noble democracy.",
+  "Kingdom of Hungary (Habsburg)": "Under Habsburg rule after Ottoman conquest of central Hungary. Frequent wars with the Ottoman Empire.",
+  "Republic of Ragusa": "Independent maritime republic (modern Dubrovnik). Maintained independence through diplomacy and played Ottomans against Venice.",
+  "Republic of Venice": "Ancient maritime republic controlling Adriatic trade. Slow decline from 15th century but remained culturally influential.",
 };

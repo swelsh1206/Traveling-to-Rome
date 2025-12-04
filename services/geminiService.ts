@@ -28,7 +28,7 @@ const outcomeSchema = {
                     items: { type: Type.STRING }
                 },
                 health_change: { type: Type.NUMBER, description: "Integer change in player health. Can be positive, negative, or zero." },
-                food_change: { type: Type.NUMBER, description: "Integer change in player food supply. Can be positive, negative, or zero." },
+                food_change: { type: Type.NUMBER, description: "IMPORTANT: For Travel actions, ALWAYS set to 0 (food consumption is calculated locally). For other actions, can be positive (finding food) or negative (special food loss) or zero." },
                 money_change: { type: Type.NUMBER, description: "Integer change in player money. Can be positive, negative, or zero." },
                 oxen_change: { type: Type.NUMBER, description: "Integer change in number of oxen. Can be positive, negative, or zero." },
                 distance_change: { type: Type.NUMBER, description: "Integer change in distance traveled. Usually zero unless the event causes it." },
@@ -163,15 +163,15 @@ const getProfessionEventGuidance = (profession: Profession) => {
 const getWeeklyFocusGuidance = (focus: string) => {
     switch(focus) {
         case 'cautious':
-            return "WEEKLY FOCUS: CAUTIOUS TRAVEL - The player is being extra careful, watching for dangers. Lower distance (15-25 km), less risk of ambush/injury, may avoid some dangers.";
+            return "WEEKLY FOCUS: CAUTIOUS TRAVEL - The player is being extra careful, watching for dangers. Lower distance (25-40 km base), less risk of ambush/injury, may avoid some dangers.";
         case 'fast':
-            return "WEEKLY FOCUS: FAST TRAVEL - The player is pushing hard to cover ground quickly. Higher distance (30-45 km), more exhaustion, higher risk of accidents/ambush.";
+            return "WEEKLY FOCUS: FAST TRAVEL - The player is pushing hard to cover ground quickly. Higher distance (45-65 km base), more exhaustion, higher risk of accidents/ambush.";
         case 'forage':
-            return "WEEKLY FOCUS: FORAGING - The player is gathering resources while traveling. Normal distance (20-30 km), chance to find food/herbs, may discover useful items.";
+            return "WEEKLY FOCUS: FORAGING - The player is gathering resources while traveling. Normal distance (30-45 km base), chance to find food/herbs, may discover useful items.";
         case 'bond':
-            return "WEEKLY FOCUS: FAMILY BONDING - The player is spending extra time with family during travel. Normal distance (20-30 km), improves family relationships/morale, lowers stress.";
+            return "WEEKLY FOCUS: FAMILY BONDING - The player is spending extra time with family during travel. Normal distance (30-45 km base), improves family relationships/morale, lowers stress.";
         case 'vigilant':
-            return "WEEKLY FOCUS: VIGILANT - The player is keeping extra watch for threats and opportunities. Normal distance (20-30 km), better awareness of dangers/opportunities, may spot things others miss.";
+            return "WEEKLY FOCUS: VIGILANT - The player is keeping extra watch for threats and opportunities. Normal distance (30-45 km base), better awareness of dangers/opportunities, may spot things others miss.";
         default:
             return "WEEKLY FOCUS: NORMAL TRAVEL - Standard travel pace and awareness.";
     }
@@ -429,10 +429,10 @@ export const generateActionOutcome = async (player: Player, gameState: GameState
                     "Met other travelers on road"
                 ],
                 health_change: -2,
-                food_change: -5,
+                food_change: 0, // Food consumption handled locally in GameUI
                 money_change: 0,
                 oxen_change: 0,
-                distance_change: 20,
+                distance_change: 35, // Base distance increased for faster travel
                 merchant_encountered: false,
                 inventory_changes: [],
                 conditions_add: [],

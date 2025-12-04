@@ -5,7 +5,7 @@ import CharacterCreationScreen from './components/CharacterCreationScreen';
 import GameUI from './components/GameUI';
 import EndScreen from './components/EndScreen';
 import { Player, GameState, Profession, PartyMember, Gender } from './types';
-import { PROFESSION_STATS, PROFESSION_EQUIPMENT, PROFESSION_SKILLS, TOTAL_DISTANCE_TO_ROME, INITIAL_HEALTH, INITIAL_STAMINA, FRENCH_MALE_NAMES, FRENCH_FEMALE_NAMES, FRENCH_LAST_NAMES } from './constants';
+import { PROFESSION_STATS, PROFESSION_EQUIPMENT, PROFESSION_SKILLS, TOTAL_DISTANCE_TO_ROME, INITIAL_HEALTH, INITIAL_STAMINA, FRENCH_MALE_NAMES, FRENCH_FEMALE_NAMES, FRENCH_LAST_NAMES, StartingCity, generateRouteCheckpoints } from './constants';
 import { generateCharacterImage } from './services/geminiService';
 import { generateRandomStartDate, getSeasonFromMonth } from './utils/dateUtils';
 
@@ -21,23 +21,26 @@ function App() {
   const [endMessage, setEndMessage] = useState({ message: '', victory: false });
   const [isCreating, setIsCreating] = useState(false);
   const [devMode, setDevMode] = useState(false);
+  const [gameYear, setGameYear] = useState<number>(1450);
 
-  const handleRandomStart = () => {
+  const handleRandomStart = (year: number) => {
+    setGameYear(year);
     setScreen('create-random');
   };
 
-  const handleCustomStart = () => {
+  const handleCustomStart = (year: number) => {
+    setGameYear(year);
     setScreen('create-custom');
   };
 
-  const handleCharacterCreate = async (name: string, profession: Profession, gender: Gender) => {
+  const handleCharacterCreate = async (name: string, profession: Profession, gender: Gender, startingCity: StartingCity, year: number) => {
     try {
       setIsCreating(true);
       const stats = PROFESSION_STATS[profession];
 
       // Generate player attributes
       const age = 25 + Math.floor(Math.random() * 20); // 25-44 years old
-      const religion = 'Catholic'; // Default for France in this period
+      const religion = 'Catholic'; // Default for most of Europe in this period
       const socialClass = profession === 'Royal' || profession === 'Noble Woman'
         ? 'High Nobility'
         : profession === 'Merchant' || profession === 'Merchant_F'
@@ -46,11 +49,28 @@ function App() {
         ? 'Craftsman'
         : 'Craftsman';
 
-      const pilgrimageReasons = ['Seeking Salvation', 'Penance for Sins', 'Cure for Illness', 'Political Refuge', 'Trade Opportunity', 'Scholarly Research', 'Family Vow', 'Escaping Persecution'] as const;
-      const pilgrimageReason = getRandomItem(pilgrimageReasons as any);
+      // Select journey reason based on profession
+      const isReligious = profession === 'Priest' || profession === 'Nun';
+      const journeyReasons = isReligious
+        ? ['Seeking Spiritual Renewal', 'Penance for Past Deeds', 'Seeking a Cure', 'Family Vow']
+        : ['Seeking a Cure', 'Political Refuge', 'Trade Opportunity', 'Scholarly Research', 'Family Vow', 'Escaping Persecution'];
+      const journeyReason = getRandomItem(journeyReasons as any);
 
       const reputation = 50; // Start neutral
-      const languages = ['French', 'Latin']; // Common for educated pilgrims
+      const languages = ['Latin']; // Latin common for educated pilgrims
+
+      // Add regional language based on starting city
+      if (startingCity.region.includes('France')) languages.push('French');
+      else if (startingCity.region.includes('England') || startingCity.region.includes('Scotland') || startingCity.region.includes('Ireland')) languages.push('English');
+      else if (startingCity.region.includes('Spain')) languages.push('Spanish');
+      else if (startingCity.region.includes('Portugal')) languages.push('Portuguese');
+      else if (startingCity.region.includes('Netherlands') || startingCity.region === 'Spanish Netherlands') languages.push('Dutch');
+      else if (startingCity.region.includes('Italy')) languages.push('Italian');
+      else if (['Bavaria', 'Brandenburg', 'Saxony', 'Austria', 'Bohemia', 'Free City', 'Archbishopric of Cologne'].includes(startingCity.region)) languages.push('German');
+      else if (startingCity.region === 'Switzerland') languages.push('German', 'French');
+      else if (startingCity.region.includes('Sweden') || startingCity.region.includes('Denmark') || startingCity.region.includes('Norway')) languages.push('Norse');
+      else if (startingCity.region.includes('Poland')) languages.push('Polish');
+      else if (startingCity.region.includes('Hungary')) languages.push('Hungarian');
 
       const newPlayer: Player = {
         name,
@@ -60,8 +80,11 @@ function App() {
         age,
         religion,
         socialClass,
-        pilgrimageReason,
-        startingCity: 'Paris', // Will be set from character generation
+        journeyReason,
+        startingCity: startingCity.name,
+        startingRegion: startingCity.region,
+        distanceToRome: startingCity.distance,
+        routeCheckpoints: generateRouteCheckpoints(startingCity),
         reputation,
         languages,
         background: stats.description
@@ -78,6 +101,7 @@ function App() {
         role: 'spouse',
         health: INITIAL_HEALTH,
         conditions: [],
+        injuries: [],
         relationship: 75 + Math.floor(Math.random() * 20), // 75-95 (family should start with good relationship)
         mood: 'hopeful',
         trust: 75 + Math.floor(Math.random() * 20), // 75-95
@@ -92,6 +116,7 @@ function App() {
         role: 'child',
         health: INITIAL_HEALTH,
         conditions: [],
+        injuries: [],
         relationship: 70 + Math.floor(Math.random() * 22), // 70-92 (children might be slightly more variable)
         mood: 'content',
         trust: 70 + Math.floor(Math.random() * 20), // 70-90
@@ -100,29 +125,53 @@ function App() {
 
       const party = [spouse, child];
 
-      // Generate random start date in Early Modern period (1450-1650)
-      const startDate = generateRandomStartDate();
-      const startSeason = getSeasonFromMonth(startDate.month);
+      // Use the year from character creation, generate random start month in spring
+      const month = Math.floor(Math.random() * 3) + 3; // March (3), April (4), or May (5)
+      const daysInMonth = month === 3 || month === 5 ? 31 : 30;
+      const dayOfMonth = Math.floor(Math.random() * daysInMonth) + 1;
+      const startSeason = getSeasonFromMonth(month);
+
+      // Determine if player has a wagon based on oxen
+      const hasWagon = stats.oxen >= 2;
+
+      // Determine transportation based on profession/money
+      const transportation =
+        profession === 'Royal' || profession === 'Noble Woman' ? 'Royal Procession' :
+        stats.money >= 500 ? 'Carriage' :
+        stats.money >= 350 ? 'Wagon' :
+        stats.money >= 275 ? 'Horse' : 'On Foot';
+
+      // Set initial ammunition based on profession
+      const initialAmmunition = profession === Profession.Soldier ? 20 : profession === Profession.Royal ? 15 : 10;
+
+      // Set initial spare parts based on profession
+      const initialSpareParts = profession === Profession.Blacksmith ? 5 : profession === Profession.Royal ? 3 : hasWagon ? 2 : 0;
 
       const newGameState: GameState = {
         day: 1,
-        year: startDate.year,
-        month: startDate.month,
-        dayOfMonth: startDate.dayOfMonth,
+        year: year,
+        month: month,
+        dayOfMonth: dayOfMonth,
         distanceTraveled: 0,
-        distanceToRome: TOTAL_DISTANCE_TO_ROME,
+        distanceToRome: startingCity.distance, // Use actual distance from starting city
         health: INITIAL_HEALTH,
         food: stats.food,
         money: stats.money,
         oxen: stats.oxen,
         stamina: INITIAL_STAMINA,
+        ammunition: initialAmmunition,
+        spareParts: initialSpareParts,
+        hasWagon: hasWagon,
+        transportation: transportation,
         inventory: { ...stats.inventory },
         conditions: [],
+        injuries: [],
         phase: 'traveling',
         party: party,
         currentLocation: null,
         weather: 'Clear',
         season: startSeason,
+        terrain: 'Farmland', // Starting terrain
         equipment: { ...PROFESSION_EQUIPMENT[profession] },
         skills: { ...PROFESSION_SKILLS[profession] },
         rationLevel: 'normal', // Default to normal rations
@@ -167,9 +216,9 @@ function App() {
       case 'start':
         return <StartScreen onRandomStart={handleRandomStart} onCustomStart={handleCustomStart} onDevModeChange={setDevMode} />;
       case 'create-random':
-        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="random" />;
+        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="random" year={gameYear} />;
       case 'create-custom':
-        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="custom" />;
+        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="custom" year={gameYear} />;
       case 'game':
         if (player && gameState) {
           return <GameUI player={player} initialGameState={gameState} characterImageUrl={characterImageUrl} onGameEnd={handleGameEnd} onRestartRun={handleRestart} devMode={devMode} />;

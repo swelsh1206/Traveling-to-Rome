@@ -7,7 +7,7 @@ interface SettingsMenuProps {
 
 const SettingsMenu: React.FC<SettingsMenuProps> = ({ onRestartRun }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'menu' | 'references' | 'about'>('menu');
+  const [activeTab, setActiveTab] = useState<'menu' | 'references' | 'context' | 'about'>('menu');
 
   return (
     <>
@@ -26,10 +26,10 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onRestartRun }) => {
       {/* Settings Modal */}
       {isOpen && (
         <ModalWindow title="Menu" onClose={() => setIsOpen(false)}>
-          <div className="flex gap-4 mb-4 border-b border-amber-600/30 pb-2">
+          <div className="flex gap-2 mb-4 border-b border-amber-600/30 pb-2 overflow-x-auto">
             <button
               onClick={() => setActiveTab('menu')}
-              className={`px-4 py-2 rounded-md transition-colors ${
+              className={`px-4 py-2 rounded-md transition-colors whitespace-nowrap ${
                 activeTab === 'menu'
                   ? 'bg-amber-600/30 text-amber-200 border border-amber-500'
                   : 'text-gray-400 hover:text-amber-200'
@@ -38,8 +38,18 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onRestartRun }) => {
               Menu
             </button>
             <button
+              onClick={() => setActiveTab('context')}
+              className={`px-4 py-2 rounded-md transition-colors whitespace-nowrap ${
+                activeTab === 'context'
+                  ? 'bg-amber-600/30 text-amber-200 border border-amber-500'
+                  : 'text-gray-400 hover:text-amber-200'
+              }`}
+            >
+              Context
+            </button>
+            <button
               onClick={() => setActiveTab('references')}
-              className={`px-4 py-2 rounded-md transition-colors ${
+              className={`px-4 py-2 rounded-md transition-colors whitespace-nowrap ${
                 activeTab === 'references'
                   ? 'bg-amber-600/30 text-amber-200 border border-amber-500'
                   : 'text-gray-400 hover:text-amber-200'
@@ -49,7 +59,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onRestartRun }) => {
             </button>
             <button
               onClick={() => setActiveTab('about')}
-              className={`px-4 py-2 rounded-md transition-colors ${
+              className={`px-4 py-2 rounded-md transition-colors whitespace-nowrap ${
                 activeTab === 'about'
                   ? 'bg-amber-600/30 text-amber-200 border border-amber-500'
                   : 'text-gray-400 hover:text-amber-200'
@@ -82,53 +92,169 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onRestartRun }) => {
             </div>
           )}
 
-          {activeTab === 'references' && (
-            <div className="space-y-6 text-sm max-h-[70vh] overflow-y-auto">
+          {activeTab === 'context' && (
+            <div className="space-y-4 text-sm max-h-[70vh] overflow-y-auto">
               <div className="bg-stone-700/30 p-4 rounded-lg border border-amber-600/20">
-                <h3 className="text-lg text-amber-200 font-bold mb-2">Primary Sources & Historical References</h3>
+                <h3 className="text-lg text-amber-200 font-bold mb-2">Early Modern Europe (Based on Merry Wiesner-Hanks)</h3>
                 <p className="text-gray-300 text-xs italic mb-3">
-                  This game is set in Early Modern Europe (1450-1650). It draws upon authentic sources to recreate the perilous journey from France to Rome through war-torn Europe.
+                  Historical context drawn from academic perspectives on Early Modern European social, economic, and cultural history.
                 </p>
               </div>
 
               <div className="space-y-4">
-                <div className="bg-red-900/20 p-3 rounded-lg border border-red-600/30">
-                  <h4 className="text-red-300 font-bold mb-2">⚔️ The Thirty Years' War (1618-1648)</h4>
+                {/* 1450-1500 */}
+                <div className="bg-purple-900/20 p-3 rounded-lg border border-purple-600/30">
+                  <h4 className="text-purple-300 font-bold mb-2">📜 1450-1500: Demographic Recovery & Economic Expansion</h4>
                   <p className="text-gray-300 text-xs mb-2">
-                    One of the most devastating conflicts in European history. By 1640, central Europe had endured 22 years of continuous warfare, famine, and plague.
-                  </p>
-                  <ul className="text-gray-400 text-xs space-y-2">
-                    <li><span className="text-amber-300 font-semibold">Simplicius Simplicissimus</span> (1668) by Hans Jakob Christoffel von Grimmelshausen - Picaresque novel based on the author's experiences as a soldier; vivid descriptions of war's devastation on civilians</li>
-                    <li><span className="text-amber-300 font-semibold">Les Misères et les Malheurs de la Guerre</span> (1633) by Jacques Callot - Series of etchings depicting the brutal realities of the Thirty Years' War</li>
-                    <li><span className="text-amber-300 font-semibold">Contemporary Chronicles</span> - Numerous diaries, letters, and municipal records documenting pillaging, disease, starvation, and population collapse</li>
-                    <li><span className="text-amber-300 font-semibold">Parish Records</span> - Show population declines of 25-40% across affected regions between 1618-1648</li>
-                  </ul>
-                </div>
-
-                <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                  <h4 className="text-amber-200 font-bold mb-2">Early Modern Travel Accounts</h4>
-                  <ul className="text-gray-400 text-xs space-y-2">
-                    <li><span className="text-amber-300 font-semibold">An Itinerary</span> (1617) by Fynes Moryson - Englishman's detailed 10-year journey through Europe, including practical advice on routes, inns, costs, and dangers</li>
-                    <li><span className="text-amber-300 font-semibold">Coryat's Crudities</span> (1611) by Thomas Coryat - Travel account through France, Italy, and Germany with observations on customs, food, and accommodations</li>
-                    <li><span className="text-amber-300 font-semibold">A Relation of a Journey</span> (1615) by George Sandys - Account of travels through the Ottoman Empire and Europe</li>
-                    <li><span className="text-amber-300 font-semibold">Journal de Voyage</span> (1580-1581) by Michel de Montaigne - French philosopher's travel journal through France, Switzerland, Germany, and Italy</li>
-                    <li><span className="text-amber-300 font-semibold">Roma Sotterranea</span> (1632) by Antonio Bosio - Guide to Rome's catacombs and early Christian sites, popular with 17th century pilgrims</li>
-                  </ul>
-                </div>
-
-                <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                  <h4 className="text-amber-200 font-bold mb-2">Historical Context: Game Mechanics</h4>
-                  <p className="text-gray-300 text-xs mb-2">
-                    Game mechanics are grounded in documented Early Modern realities:
+                    Europe recovers from plague's demographic catastrophe. Population growth drives economic expansion; Italian city-states dominate Mediterranean trade; printing revolutionizes information exchange.
                   </p>
                   <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
-                    <li>Travel speeds: 25-35 km/day on foot typical for Early Modern travelers</li>
-                    <li>Food costs: Based on market records from 1450-1650; war inflation affects prices</li>
-                    <li>Plague outbreaks: Major epidemics documented throughout the period</li>
-                    <li>Banditry: Deserters and disbanded soldiers turned brigands</li>
-                    <li>Weather: "Little Ice Age" period (1550-1850) with colder conditions</li>
-                    <li>Religious conflicts: Reformation, Counter-Reformation, and religious wars</li>
+                    <li>Urban populations grow; guild systems regulate craft production</li>
+                    <li>Merchant banking families (Medici, Fugger) finance princes and popes</li>
+                    <li>Print culture transforms literacy and religious practice</li>
+                    <li>Marriage patterns shift as economic opportunities expand</li>
                   </ul>
+                </div>
+
+                {/* 1500-1560 */}
+                <div className="bg-blue-900/20 p-3 rounded-lg border border-blue-600/30">
+                  <h4 className="text-blue-300 font-bold mb-2">⛪ 1500-1560: Religious Fragmentation & Social Upheaval</h4>
+                  <p className="text-gray-300 text-xs mb-2">
+                    Protestant movements shatter Western Christianity's unity. Peasant rebellions challenge social hierarchies; confessional divisions reshape political allegiances.
+                  </p>
+                  <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                    <li>Luther's theology spreads via print; vernacular Bible reading increases</li>
+                    <li>1525 Peasants' War: largest uprising in German history before 1848</li>
+                    <li>Women's religious roles debated and restricted across confessions</li>
+                    <li>Anabaptists persecuted by both Catholics and mainstream Protestants</li>
+                  </ul>
+                </div>
+
+                {/* 1560-1618 */}
+                <div className="bg-green-900/20 p-3 rounded-lg border border-green-600/30">
+                  <h4 className="text-green-300 font-bold mb-2">👑 1560-1618: Confessional State Formation</h4>
+                  <p className="text-gray-300 text-xs mb-2">
+                    Rulers consolidate power through bureaucracy and confessional identity. Religious divisions harden into political-military alliances.
+                  </p>
+                  <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                    <li>Parish registers track births, marriages, deaths for state control</li>
+                    <li>Confessional loyalty becomes marker of political reliability</li>
+                    <li>French Wars of Religion devastate countryside; traveling dangerous</li>
+                    <li>Spanish Netherlands revolt combines religious and political grievances</li>
+                  </ul>
+                </div>
+
+                {/* 1618-1650 */}
+                <div className="bg-red-900/20 p-3 rounded-lg border border-red-600/30">
+                  <h4 className="text-red-300 font-bold mb-2">⚔️ 1618-1650: Thirty Years' War Catastrophe</h4>
+                  <p className="text-gray-300 text-xs mb-2">
+                    Military conflict, famine, and disease cause demographic catastrophe in Central Europe. Mercenary soldiers often unpaid; pillaging sustains armies.
+                  </p>
+                  <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                    <li>Village populations decimated; some areas lose 40-60% of inhabitants</li>
+                    <li>Soldiers' wives follow armies; camp communities form mobile societies</li>
+                    <li>Breakdown of social order; banditry and desertion endemic</li>
+                    <li>Travel extremely dangerous; roads contested by armed groups</li>
+                  </ul>
+                </div>
+
+                {/* 1650-1700 */}
+                <div className="bg-yellow-900/20 p-3 rounded-lg border border-yellow-600/30">
+                  <h4 className="text-yellow-300 font-bold mb-2">☀️ 1650-1700: State Building & Mercantilism</h4>
+                  <p className="text-gray-300 text-xs mb-2">
+                    European powers expand overseas colonies; absolutist monarchies centralize authority through bureaucracy and standing armies.
+                  </p>
+                  <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                    <li>Tax collection systems expand; resistance persists in countryside</li>
+                    <li>Colonial trade enriches merchant classes; sugar, tobacco, slaves</li>
+                    <li>Court culture at Versailles sets European fashion standards</li>
+                    <li>Religious minorities face renewed persecution; mass migrations occur</li>
+                  </ul>
+                </div>
+
+                {/* 1700-1750 */}
+                <div className="bg-indigo-900/20 p-3 rounded-lg border border-indigo-600/30">
+                  <h4 className="text-indigo-300 font-bold mb-2">📚 1700-1750: Consumer Culture & Atlantic Economy</h4>
+                  <p className="text-gray-300 text-xs mb-2">
+                    Coffee houses spread; colonial trade creates new consumer goods. Enlightenment salons challenge traditional authorities.
+                  </p>
+                  <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                    <li>Print culture expands; newspapers and periodicals proliferate</li>
+                    <li>New commodities (coffee, tea, chocolate) reshape daily life</li>
+                    <li>Women participate in Enlightenment salons but excluded from academies</li>
+                    <li>Banking systems develop; credit and debt become widespread</li>
+                  </ul>
+                </div>
+
+                {/* 1750-1800 */}
+                <div className="bg-orange-900/20 p-3 rounded-lg border border-orange-600/30">
+                  <h4 className="text-orange-300 font-bold mb-2">🔥 1750-1800: Enlightenment & Agrarian Change</h4>
+                  <p className="text-gray-300 text-xs mb-2">
+                    Population growth accelerates; proto-industrialization transforms rural economies. Political challenges to Old Regime emerge.
+                  </p>
+                  <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
+                    <li>Agricultural improvements increase food production; enclosure movements</li>
+                    <li>Cottage industries spread; women and children central to production</li>
+                    <li>Migration to cities accelerates; urban poor populations grow</li>
+                    <li>Revolutionary ideas circulate; critiques of monarchy and privilege</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'references' && (
+            <div className="space-y-6 text-sm max-h-[70vh] overflow-y-auto">
+              <div className="bg-stone-700/30 p-4 rounded-lg border border-amber-600/20">
+                <h3 className="text-lg text-amber-200 font-bold mb-2">📚 Academic Sources & References</h3>
+                <p className="text-gray-300 text-xs italic mb-3">
+                  This game draws upon academic research and primary sources to recreate authentic Early Modern European travel experiences.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                  <h4 className="text-amber-300 font-bold mb-2">Coryat's Crudities</h4>
+                  <p className="text-gray-300 text-xs leading-relaxed">
+                    Thomas Coryat's 1611 travel account through France, Italy, and Germany. Provides vivid observations on customs, food, accommodations, and the practicalities of Early Modern travel.
+                  </p>
+                </div>
+
+                <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                  <h4 className="text-amber-300 font-bold mb-2">Michel de Montaigne's Journal</h4>
+                  <p className="text-gray-300 text-xs leading-relaxed">
+                    The French philosopher's travel journal (1580-1581) documenting his journey through France, Switzerland, Germany, and Italy. Offers intimate perspectives on Early Modern travel conditions and experiences.
+                  </p>
+                </div>
+
+                <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                  <h4 className="text-amber-300 font-bold mb-2">Merry Wiesner-Hanks' <em>Early Modern Europe</em></h4>
+                  <p className="text-gray-300 text-xs leading-relaxed">
+                    Comprehensive academic survey of Early Modern European social, economic, and cultural history. Essential context for understanding the period's daily life, social structures, and historical developments.
+                  </p>
+                </div>
+
+                <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                  <h4 className="text-amber-300 font-bold mb-2">Benvenuto Cellini's Autobiography</h4>
+                  <p className="text-gray-300 text-xs leading-relaxed">
+                    The famous Renaissance artist and goldsmith's vivid autobiography includes detailed accounts of his travels through Italy and France, providing insight into the experiences of skilled craftsmen moving between European cities.
+                  </p>
+                </div>
+
+                <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                  <h4 className="text-amber-300 font-bold mb-2">Gabor Gelleri's <em>From Touring to Training</em></h4>
+                  <p className="text-gray-300 text-xs leading-relaxed">
+                    Academic study examining the evolution and purposes of early modern travel, from educational tours to professional training journeys, illuminating the diverse motivations behind European travel during this period.
+                  </p>
+                </div>
+
+                <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                  <h4 className="text-amber-300 font-bold mb-2">Daniel Margocsy's <em>The Fuzzy Metrics of Money</em></h4>
+                  <p className="text-gray-300 text-xs leading-relaxed">
+                    <span className="font-semibold">Full title:</span> "The finances of travel and the reception of curiosities in early modern Europe."
+                    <br /><br />
+                    Scholarly examination of the economic dimensions of early modern travel, exploring how travelers financed their journeys and the complex monetary systems they navigated across different European territories.
+                  </p>
                 </div>
               </div>
             </div>
@@ -142,18 +268,19 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onRestartRun }) => {
                   The Road to Rome
                 </p>
                 <p className="text-gray-400 text-sm leading-relaxed">
-                  A historically-inspired survival journey through Early Modern Europe (1450-1650). Navigate treacherous roads, manage resources, and guide your family safely to Rome through an era of plague, war, and upheaval.
+                  A historically-inspired survival journey through Early Modern Europe (1450-1800). Navigate treacherous roads, manage resources, and guide your family safely to Rome through an era of plague, war, and upheaval.
                 </p>
               </div>
 
               <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
                 <h4 className="text-amber-200 font-bold mb-2">Game Features</h4>
                 <ul className="text-gray-400 text-sm space-y-2 list-disc list-inside">
-                  <li>Dynamic AI-generated events tailored to your profession</li>
-                  <li>Authentic historical dates and context (1450-1650)</li>
+                  <li>Dynamic AI-generated events tailored to your profession and era</li>
+                  <li>Authentic historical dates and context spanning 350 years (1450-1800)</li>
                   <li>Family relationship and trust systems</li>
                   <li>Profession-based abilities and storylines</li>
                   <li>Resource management and survival mechanics</li>
+                  <li>Historical events that shape your journey</li>
                 </ul>
               </div>
             </div>

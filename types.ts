@@ -22,10 +22,10 @@ export type Religion = 'Catholic' | 'Protestant';
 
 export type SocialClass = 'Peasant' | 'Craftsman' | 'Merchant Class' | 'Minor Nobility' | 'High Nobility';
 
-export type PilgrimageReason =
-  | 'Seeking Salvation'
-  | 'Penance for Sins'
-  | 'Cure for Illness'
+export type JourneyReason =
+  | 'Seeking Spiritual Renewal'  // For religious professions
+  | 'Penance for Past Deeds'     // For religious professions
+  | 'Seeking a Cure'
   | 'Political Refuge'
   | 'Trade Opportunity'
   | 'Scholarly Research'
@@ -44,10 +44,38 @@ export interface CharacterStats {
   inventory: Inventory;
 }
 
+// Expanded injury and condition system
+export type InjurySeverity = 'Minor' | 'Moderate' | 'Severe' | 'Critical';
+
+export type InjuryType =
+  // Physical Injuries
+  | 'Bruised' | 'Sprained Ankle' | 'Broken Leg' | 'Broken Arm'
+  | 'Head Wound' | 'Deep Cut' | 'Infected Wound' | 'Fractured Ribs'
+  // Diseases
+  | 'Fever' | 'Plague' | 'Dysentery' | 'Pneumonia' | 'Consumption'
+  // Environmental
+  | 'Frostbite' | 'Heatstroke' | 'Exposure'
+  // Status
+  | 'Exhausted' | 'Starving' | 'Dehydrated' | 'Malnourished'
+  // Other
+  | 'Broken Wagon' | 'Food Poisoning';
+
+export interface Injury {
+  type: InjuryType;
+  severity: InjurySeverity;
+  healthDrain: number; // HP lost per day
+  staminaDrain: number; // Stamina lost per day
+  recoveryTime: number; // Days to naturally heal
+  daysAfflicted: number; // How many days the injury has persisted
+  description: string;
+}
+
+// Legacy type for backward compatibility
 export type Condition = 'Wounded' | 'Diseased' | 'Exhausted' | 'Broken Wagon' | 'Starving';
 export type GamePhase = 'traveling' | 'camp' | 'in_city' | 'merchant_encounter';
 export type Weather = 'Clear' | 'Rain' | 'Storm' | 'Snow' | 'Fog';
 export type Season = 'Spring' | 'Summer' | 'Autumn' | 'Winter';
+export type Terrain = 'Plains' | 'Forest' | 'Mountains' | 'Hills' | 'River Valley' | 'Farmland';
 export type RationLevel = 'filling' | 'normal' | 'meager';
 
 export interface Equipment {
@@ -69,7 +97,8 @@ export interface PartyMember {
     name: string;
     role: 'spouse' | 'child' | 'companion';
     health: number;
-    conditions: Condition[];
+    conditions: Condition[]; // Legacy
+    injuries: Injury[]; // New robust injury system
     relationship: number; // 0-100
     mood: 'content' | 'worried' | 'afraid' | 'angry' | 'hopeful' | 'devoted';
     trust: number; // 0-100
@@ -79,7 +108,7 @@ export interface PartyMember {
 
 export interface GameState {
   day: number; // Total days elapsed (for internal tracking)
-  year: number; // Historical year (1450-1650)
+  year: number; // Historical year (1450-1800)
   month: number; // Month (1-12)
   dayOfMonth: number; // Day of month (1-31)
   distanceTraveled: number;
@@ -89,13 +118,18 @@ export interface GameState {
   money: number;
   oxen: number;
   stamina: number;
+  spareParts: number; // Spare parts for wagon repairs
+  hasWagon: boolean; // Whether player has a wagon
+  transportation: TransportationType; // Method of travel affects speed
   inventory: Inventory;
-  conditions: Condition[];
+  conditions: Condition[]; // Legacy
+  injuries: Injury[]; // New robust injury system for player
   phase: GamePhase;
   party: PartyMember[];
   currentLocation: string | null;
   weather: Weather;
   season: Season;
+  terrain: Terrain;
   equipment: Equipment;
   skills: Skills;
   rationLevel: RationLevel;
@@ -110,17 +144,24 @@ export interface Player {
     stats: CharacterStats;
     religion: Religion;
     socialClass: SocialClass;
-    pilgrimageReason: PilgrimageReason;
+    journeyReason: JourneyReason;
     startingCity: string;
+    startingRegion: string;
+    distanceToRome: number; // Distance from starting city to Rome in km
+    routeCheckpoints: Array<{ name: string; distance: number }>; // Waypoints along the route
     reputation: number; // 0-100, affects interactions
     languages: string[]; // Languages known
     background: string; // Short background story
 }
 
+export type LogEntryType = 'normal' | 'positive' | 'negative' | 'critical' | 'warning' | 'info' | 'injury';
+
 export interface LogEntry {
   day: number;
   message: string;
   color: string;
+  type?: LogEntryType; // Type for enhanced formatting
+  effectValue?: number; // For showing +/- effects
 }
 
 export type PlayerAction =

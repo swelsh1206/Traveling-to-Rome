@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Player, GameState, LogEntry, PlayerAction, WindowType, Inventory, Condition, PartyMember, Profession, HuntableAnimal, Encounter } from '../types';
+import { Player, GameState, LogEntry, PlayerAction, WindowType, Inventory, Condition, PartyMember, Profession, HuntableAnimal, Encounter, Terrain } from '../types';
 import Log from './Log';
 import ActionButton from './ActionButton';
 import { generateActionOutcome, generateEncounter, processEncounterAction } from '../services/geminiService';
 import LoadingSpinner from './LoadingSpinner';
-import { TOTAL_DISTANCE_TO_ROME, PROFESSION_STATS, ITEM_EFFECTS, ITEM_DESCRIPTIONS, CRAFTING_RECIPES, INITIAL_HEALTH, ITEM_PRICES, ROUTE_CHECKPOINTS, HUNTABLE_ANIMALS, ITEM_ICONS } from '../constants';
+import { TOTAL_DISTANCE_TO_ROME, PROFESSION_STATS, ITEM_EFFECTS, ITEM_DESCRIPTIONS, CRAFTING_RECIPES, INITIAL_HEALTH, ITEM_PRICES, HUNTABLE_ANIMALS, ITEM_ICONS } from '../constants';
 import ModalWindow from './ModalWindow';
 import SuppliesBar from './SuppliesBar';
 import { formatDate, advanceDate, getSeasonFromMonth, getHistoricalContext } from '../utils/dateUtils';
@@ -12,6 +12,7 @@ import SettingsMenu from './SettingsMenu';
 import CharacterSidebar from './CharacterSidebar';
 import MapView from './MapView';
 import EncounterWindow from './EncounterWindow';
+import StartGuide from './StartGuide';
 import { STAT_TOOLTIPS, CONDITION_TOOLTIPS, PHASE_TOOLTIPS, WEATHER_TOOLTIPS, MOOD_TOOLTIPS } from '../tooltipDescriptions';
 
 interface GameUIProps {
@@ -97,6 +98,31 @@ const generateWeather = (season: 'Spring' | 'Summer' | 'Autumn' | 'Winter'): 'Cl
     }
 };
 
+// Generate random terrain based on distance traveled
+const generateTerrain = (distanceTraveled: number): Terrain => {
+    // Alps region (around 600-800 km)
+    if (distanceTraveled >= 550 && distanceTraveled <= 850) {
+        return Math.random() < 0.7 ? 'Mountains' : 'Hills';
+    }
+    // Early France (farmland and plains)
+    if (distanceTraveled < 400) {
+        const rand = Math.random();
+        if (rand < 0.4) return 'Farmland';
+        if (rand < 0.7) return 'Plains';
+        return 'Forest';
+    }
+    // Approaching Italy (hills and valleys)
+    if (distanceTraveled > 1000) {
+        const rand = Math.random();
+        if (rand < 0.4) return 'Hills';
+        if (rand < 0.7) return 'River Valley';
+        return 'Farmland';
+    }
+    // Middle section: varied terrain
+    const terrains: Terrain[] = ['Plains', 'Forest', 'Hills', 'River Valley'];
+    return terrains[Math.floor(Math.random() * terrains.length)];
+};
+
 // Weather effects on travel
 const getWeatherTravelEffect = (weather: 'Clear' | 'Rain' | 'Storm' | 'Snow' | 'Fog'): { distanceModifier: number; healthCost: number; description: string } => {
     switch (weather) {
@@ -125,6 +151,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
   const [currentEncounter, setCurrentEncounter] = useState<Encounter | null>(null);
   const [isProcessingEncounter, setIsProcessingEncounter] = useState(false);
   const [cart, setCart] = useState<Record<string, { quantity: number; type: 'buy' | 'sell' }>>({});
+  const [showStartGuide, setShowStartGuide] = useState(true);
 
   const addLogEntry = useCallback((message: string, color: string = 'text-white', dayOverride?: number) => {
     setLog(prevLog => {
@@ -286,6 +313,13 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
   const handleHuntAttempt = (animal: HuntableAnimal) => {
     setActiveWindow(null);
+
+    // Check if player has ammunition
+    if (gameState.ammunition < 1) {
+      addLogEntry(`You have no ammunition to hunt with!`, 'text-red-400');
+      return;
+    }
+
     let successChance = animal.successChance;
     if (player.profession === Profession.Soldier) {
         successChance += 10; // Soldier bonus
@@ -293,23 +327,35 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
     const roll = Math.random() * 100;
     const staminaCost = 20;
+    const ammunitionCost = 1;
+
     setGameState(prev => {
         if (roll < successChance) {
             // Success
             const foodGained = Math.floor(Math.random() * (animal.foodYield[1] - animal.foodYield[0] + 1)) + animal.foodYield[0];
-            addLogEntry(`Success! You hunted a ${animal.name} and gathered ${foodGained} food. (-${staminaCost} stamina)`, 'text-white');
-            return { ...prev, stamina: Math.max(0, prev.stamina - staminaCost), food: prev.food + foodGained };
+            addLogEntry(`Success! You hunted a ${animal.name} and gathered ${foodGained} food. (-${staminaCost} stamina, -${ammunitionCost} ammunition)`, 'text-white');
+            return {
+              ...prev,
+              stamina: Math.max(0, prev.stamina - staminaCost),
+              food: prev.food + foodGained,
+              ammunition: prev.ammunition - ammunitionCost
+            };
         } else {
             // Failure
             let newConditions = [...prev.conditions];
             const injuryRoll = Math.random() * 100;
-            let message = `The ${animal.name} escaped. You return with nothing. (-${staminaCost} stamina)`;
+            let message = `The ${animal.name} escaped. You return with nothing. (-${staminaCost} stamina, -${ammunitionCost} ammunition)`;
             if (injuryRoll < animal.injuryRisk) {
                 newConditions = updateConditions(newConditions, ['Wounded']);
-                message = `The ${animal.name} fought back and escaped. You are now Wounded. (-${staminaCost} stamina)`;
+                message = `The ${animal.name} fought back and escaped. You are now Wounded. (-${staminaCost} stamina, -${ammunitionCost} ammunition)`;
             }
             addLogEntry(message, 'text-white');
-            return { ...prev, stamina: Math.max(0, prev.stamina - staminaCost), conditions: newConditions };
+            return {
+              ...prev,
+              stamina: Math.max(0, prev.stamina - staminaCost),
+              conditions: newConditions,
+              ammunition: prev.ammunition - ammunitionCost
+            };
         }
     });
   };
@@ -318,7 +364,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
     if (isGameOver || isLoading) return;
 
     // Check stamina for actions that require it
-    const staminaRequiredActions = ['Hunt', 'Scout Ahead', 'Forage for Herbs', 'Repair Wagon'];
+    const staminaRequiredActions = ['Hunt', 'Forage for Herbs', 'Repair Wagon'];
     if (staminaRequiredActions.includes(action) && gameState.stamina <= 0) {
         addLogEntry("You are too exhausted to perform this action. You must rest first.", 'text-red-400');
         return;
@@ -400,6 +446,30 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         return;
     }
 
+    if (action === 'Repair Wagon') {
+        if (!gameState.hasWagon) {
+            addLogEntry("You don't have a wagon to repair!", 'text-red-400');
+            return;
+        }
+        if (!gameState.conditions.includes('Broken Wagon')) {
+            addLogEntry("Your wagon doesn't need repairs right now.", 'text-white');
+            return;
+        }
+        if (gameState.spareParts < 1) {
+            addLogEntry("You don't have any spare parts to repair the wagon!", 'text-red-400');
+            return;
+        }
+
+        addLogEntry('You use spare parts to repair the wagon. It should hold together for now.', 'text-white');
+        setGameState(prev => ({
+            ...prev,
+            spareParts: prev.spareParts - 1,
+            stamina: Math.max(0, prev.stamina - 15),
+            conditions: prev.conditions.filter(c => c !== 'Broken Wagon'),
+        }));
+        return;
+    }
+
     setIsLoading(true);
     const outcome = await generateActionOutcome(player, gameState, action);
 
@@ -432,7 +502,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
 
         // Actions other than Travel consume stamina
         if (action !== 'Travel') {
-            const staminaCost = action === 'Scout Ahead' ? 10 : 15;
+            const staminaCost = 15;
             newState.stamina = Math.max(0, newState.stamina - staminaCost);
         }
 
@@ -453,24 +523,36 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         newState.money = Math.max(0, newState.money + outcome.money_change);
         newState.oxen = Math.max(0, newState.oxen + outcome.oxen_change);
 
-        // Update weather and season if traveling
+        // Update weather, terrain, and season if traveling
         let weatherEffect = { distanceModifier: 1.0, healthCost: 0, description: '' };
         if (action === 'Travel') {
             newState.season = getSeason(newState.day);
             newState.weather = generateWeather(newState.season);
+            newState.terrain = generateTerrain(newState.distanceTraveled);
             weatherEffect = getWeatherTravelEffect(newState.weather);
         }
 
         // Calculate distance with modifiers
         let distanceChange = outcome.distance_change || 0;
         if (action === 'Travel') {
+            // Apply weather modifier
             distanceChange = Math.floor(distanceChange * weatherEffect.distanceModifier);
+
+            // Apply transportation speed multipliers (clear and simple)
+            const transportationMultiplier =
+                newState.transportation === 'Royal Procession' ? 2.5 :
+                newState.transportation === 'Horse' ? 2.0 :
+                newState.transportation === 'Carriage' ? 1.8 :
+                newState.transportation === 'Wagon' ? 1.5 :
+                1.0; // On Foot
+
+            distanceChange = Math.floor(distanceChange * transportationMultiplier);
         }
+
+        // Apply condition-based penalties
         if (newState.conditions.includes('Wounded')) distanceChange *= 0.75;
         if (newState.conditions.includes('Broken Wagon')) distanceChange *= 0.5;
-        if (newState.oxen === 1) distanceChange *= 0.8;
-        if (newState.oxen === 0) distanceChange *= 0.25;
-        if (newState.oxen > 2) distanceChange *= 1.1;
+
         distanceChange = Math.floor(distanceChange);
         newState.distanceTraveled += distanceChange;
 
@@ -493,10 +575,10 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
             newState.phase = 'merchant_encounter';
         } else if (action === 'Travel') {
             // Check for arrival at a checkpoint city
-            const nextCheckpoint = ROUTE_CHECKPOINTS[nextCheckpointIndex];
+            const nextCheckpoint = player.routeCheckpoints[nextCheckpointIndex];
             if (nextCheckpoint && newState.distanceTraveled >= nextCheckpoint.distance) {
                 newState.phase = 'in_city';
-                newState.currentLocation = `the city of ${nextCheckpoint.name}`;
+                newState.currentLocation = nextCheckpoint.name;
                 setNextCheckpointIndex(prev => prev + 1);
             }
         }
@@ -523,9 +605,9 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
     }
 
     // Check for city arrival
-    const nextCheckpoint = ROUTE_CHECKPOINTS[nextCheckpointIndex];
+    const nextCheckpoint = player.routeCheckpoints[nextCheckpointIndex];
     if (action === 'Travel' && nextCheckpoint && (gameState.distanceTraveled + (outcome.distance_change || 0)) >= nextCheckpoint.distance) {
-        addLogEntry(`You have arrived at the city of ${nextCheckpoint.name}! You can rest and resupply here.`, 'text-purple-300', newDay);
+        addLogEntry(`You have arrived at ${nextCheckpoint.name}! You can rest and resupply here.`, 'text-purple-300', newDay);
     }
 
     setIsLoading(false);
@@ -664,9 +746,8 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
         case 'traveling':
             return [
                 { label: '1 - Travel', action: 'Travel', key: '1' },
-                { label: '2 - Scout Ahead', action: 'Scout Ahead', key: '2' },
-                { label: '3 - Hunt', action: 'Hunt', key: '3' },
-                { label: '4 - Make Camp', action: 'Make Camp', key: '4' },
+                { label: '2 - Hunt', action: 'Hunt', key: '2' },
+                { label: '3 - Make Camp', action: 'Make Camp', key: '3' },
             ];
         case 'camp':
             const campActions = [
@@ -1170,102 +1251,55 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
             return (
                 <div className="space-y-6 text-sm">
                     <div className="bg-stone-700/30 p-4 rounded-lg border border-amber-600/20">
-                        <h3 className="text-lg text-amber-200 font-bold mb-2">Primary Sources & Historical References</h3>
+                        <h3 className="text-lg text-amber-200 font-bold mb-2">📚 Academic Sources & References</h3>
                         <p className="text-gray-300 text-xs italic mb-3">
-                            This game is set in 1640 during the Thirty Years' War (1618-1648). It draws upon authentic Early Modern sources to recreate the perilous journey from France to Rome through war-torn Europe.
+                            This game draws upon academic research and primary sources to recreate authentic Early Modern European travel experiences.
                         </p>
                     </div>
 
-                    <div className="space-y-4">
-                        <div className="bg-red-900/20 p-3 rounded-lg border border-red-600/30">
-                            <h4 className="text-red-300 font-bold mb-2">⚔️ The Thirty Years' War (1618-1648)</h4>
-                            <p className="text-gray-300 text-xs mb-2">
-                                One of the most devastating conflicts in European history. By 1640, central Europe had endured 22 years of continuous warfare, famine, and plague.
+                    <div className="space-y-3">
+                        <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-300 font-bold mb-2">Coryat's Crudities</h4>
+                            <p className="text-gray-300 text-xs leading-relaxed">
+                                Thomas Coryat's 1611 travel account through France, Italy, and Germany. Provides vivid observations on customs, food, accommodations, and the practicalities of Early Modern travel.
                             </p>
-                            <ul className="text-gray-400 text-xs space-y-2">
-                                <li><span className="text-amber-300 font-semibold">Simplicius Simplicissimus</span> (1668) by Hans Jakob Christoffel von Grimmelshausen - Picaresque novel based on the author's experiences as a soldier; vivid descriptions of war's devastation on civilians</li>
-                                <li><span className="text-amber-300 font-semibold">Les Misères et les Malheurs de la Guerre</span> (1633) by Jacques Callot - Series of etchings depicting the brutal realities of the Thirty Years' War</li>
-                                <li><span className="text-amber-300 font-semibold">Contemporary Chronicles</span> - Numerous diaries, letters, and municipal records documenting pillaging, disease, starvation, and population collapse</li>
-                                <li><span className="text-amber-300 font-semibold">Parish Records</span> - Show population declines of 25-40% across affected regions between 1618-1648</li>
-                            </ul>
                         </div>
 
-                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                            <h4 className="text-amber-200 font-bold mb-2">Early Modern Travel Accounts</h4>
-                            <ul className="text-gray-400 text-xs space-y-2">
-                                <li><span className="text-amber-300 font-semibold">An Itinerary</span> (1617) by Fynes Moryson - Englishman's detailed 10-year journey through Europe, including practical advice on routes, inns, costs, and dangers</li>
-                                <li><span className="text-amber-300 font-semibold">Coryat's Crudities</span> (1611) by Thomas Coryat - Travel account through France, Italy, and Germany with observations on customs, food, and accommodations</li>
-                                <li><span className="text-amber-300 font-semibold">A Relation of a Journey</span> (1615) by George Sandys - Account of travels through the Ottoman Empire and Europe</li>
-                                <li><span className="text-amber-300 font-semibold">Journal de Voyage</span> (1580-1581) by Michel de Montaigne - French philosopher's travel journal through France, Switzerland, Germany, and Italy</li>
-                                <li><span className="text-amber-300 font-semibold">Roma Sotterranea</span> (1632) by Antonio Bosio - Guide to Rome's catacombs and early Christian sites, popular with 17th century pilgrims</li>
-                            </ul>
-                        </div>
-
-                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                            <h4 className="text-amber-200 font-bold mb-2">17th Century Military Manuals</h4>
-                            <ul className="text-gray-400 text-xs space-y-2">
-                                <li><span className="text-amber-300 font-semibold">The Swedish Discipline</span> (1632) - Translated manuals of Gustavus Adolphus's revolutionary military reforms used during the Thirty Years' War</li>
-                                <li><span className="text-amber-300 font-semibold">The Compleat Souldier</span> (1639) by Thomas Venn - English military manual covering tactics, equipment, and soldier's life</li>
-                                <li><span className="text-amber-300 font-semibold">L'Art Militaire pour l'Infanterie</span> (1615) by Jacob de Gheyn - Illustrated drill manual widely used in European armies</li>
-                                <li><span className="text-amber-300 font-semibold">Military Instructions for the Cavallrie</span> (1632) by John Cruso - Cavalry tactics and training</li>
-                            </ul>
-                        </div>
-
-                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                            <h4 className="text-amber-200 font-bold mb-2">Trade, Commerce & Prices (17th Century)</h4>
-                            <ul className="text-gray-400 text-xs space-y-2">
-                                <li><span className="text-amber-300 font-semibold">Le Parfait Négociant</span> (1675) by Jacques Savary - Comprehensive merchant's handbook (slightly post-1640 but reflects earlier practices)</li>
-                                <li><span className="text-amber-300 font-semibold">Merchant Account Books</span> - Archives from Lyon, Florence, Venice, and Paris documenting prices, exchange rates, and trade goods 1600-1650</li>
-                                <li><span className="text-amber-300 font-semibold">Market Price Lists</span> (Mercuriales) - Weekly price records from major cities showing commodity costs, affected by war and harvest failures</li>
-                                <li><span className="text-amber-300 font-semibold">Guild Regulations</span> - 17th century ordinances governing craftsmen, blacksmiths, apothecaries, and merchants</li>
-                            </ul>
-                        </div>
-
-                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                            <h4 className="text-amber-200 font-bold mb-2">Medicine, Plague & Health (1600s)</h4>
-                            <ul className="text-gray-400 text-xs space-y-2">
-                                <li><span className="text-amber-300 font-semibold">Plague Treatises</span> - Numerous 17th century texts on identifying and treating plague, which killed millions during this period</li>
-                                <li><span className="text-amber-300 font-semibold">Opera Medica</span> (1644) by Daniel Sennert - Comprehensive medical textbook used widely in 1640s</li>
-                                <li><span className="text-amber-300 font-semibold">Pharmacopoeia</span> - Various European pharmacopeias (Paris 1638, London 1618) listing medicinal compounds and herbal remedies</li>
-                                <li><span className="text-amber-300 font-semibold">The Surgion's Mate</span> (1617) by John Woodall - Practical medical guide for treating wounds, common in an era of constant warfare</li>
-                                <li><span className="text-amber-300 font-semibold">Herbals</span> - John Gerard's Herball (1597), John Parkinson's Theatrum Botanicum (1640) - comprehensive guides to medicinal plants</li>
-                            </ul>
-                        </div>
-
-                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                            <h4 className="text-amber-200 font-bold mb-2">Religious Context: Counter-Reformation</h4>
-                            <ul className="text-gray-400 text-xs space-y-2">
-                                <li><span className="text-amber-300 font-semibold">The Council of Trent</span> (1545-1563) - Catholic Church reforms shaping 17th century religious practice and pilgrimage</li>
-                                <li><span className="text-amber-300 font-semibold">Spiritual Exercises</span> (1548) by Ignatius of Loyola - Jesuit devotional text influencing Catholic spirituality</li>
-                                <li><span className="text-amber-300 font-semibold">Pilgrimage Guidebooks</span> - Various 17th century guides to Roman basilicas, relics, and indulgences available to pilgrims</li>
-                                <li><span className="text-amber-300 font-semibold">Roma Sancta</span> (1581) by Gregory Martin - English Catholic's guide to Rome's holy sites</li>
-                            </ul>
-                        </div>
-
-                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                            <h4 className="text-amber-200 font-bold mb-2">Daily Life & Survival (Early Modern)</h4>
-                            <ul className="text-gray-400 text-xs space-y-2">
-                                <li><span className="text-amber-300 font-semibold">Maison Rustique</span> (1600) by Charles Estienne & Jean Liébault - Country house management, food preservation, hunting</li>
-                                <li><span className="text-amber-300 font-semibold">Le Cuisinier François</span> (1651) by François Pierre La Varenne - Reflects 17th century French cuisine and food practices</li>
-                                <li><span className="text-amber-300 font-semibold">La Vénerie</span> (1644) by Robert de Salnove - Hunting manual for game animals in France</li>
-                                <li><span className="text-amber-300 font-semibold">Weather Records</span> - 17th century observations showing the "Little Ice Age" climate with harsh winters and crop failures</li>
-                            </ul>
-                        </div>
-
-                        <div className="bg-stone-700/20 p-3 rounded-lg border border-amber-600/10">
-                            <h4 className="text-amber-200 font-bold mb-2">Historical Context: Game Mechanics</h4>
-                            <p className="text-gray-300 text-xs mb-2">
-                                Game mechanics are grounded in documented 17th century realities:
+                        <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-300 font-bold mb-2">Michel de Montaigne's Journal</h4>
+                            <p className="text-gray-300 text-xs leading-relaxed">
+                                The French philosopher's travel journal (1580-1581) documenting his journey through France, Switzerland, Germany, and Italy. Offers intimate perspectives on Early Modern travel conditions and experiences.
                             </p>
-                            <ul className="text-gray-400 text-xs space-y-1 list-disc list-inside">
-                                <li>Travel speeds: 25-35 km/day on foot typical for 17th century travelers (per Moryson's Itinerary)</li>
-                                <li>Food costs: Bread prices 1635-1645 from French mercuriales; war inflation affects markets</li>
-                                <li>Plague outbreaks: Major epidemics documented 1629-1631, 1636-1640 across affected regions</li>
-                                <li>Banditry: Deserters and disbanded soldiers turned brigands; documented in letters and trial records</li>
-                                <li>Weather: "Little Ice Age" period (1550-1850) with colder, wetter conditions than today</li>
-                                <li>War zones: 1640 saw active combat in German states, Spanish Netherlands, France-Spain border</li>
-                                <li>Mortality: Contemporary sources estimate 4-8 million deaths in German states alone by 1640</li>
-                            </ul>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-300 font-bold mb-2">Merry Wiesner-Hanks' <em>Early Modern Europe</em></h4>
+                            <p className="text-gray-300 text-xs leading-relaxed">
+                                Comprehensive academic survey of Early Modern European social, economic, and cultural history. Essential context for understanding the period's daily life, social structures, and historical developments.
+                            </p>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-300 font-bold mb-2">Benvenuto Cellini's Autobiography</h4>
+                            <p className="text-gray-300 text-xs leading-relaxed">
+                                The famous Renaissance artist and goldsmith's vivid autobiography includes detailed accounts of his travels through Italy and France, providing insight into the experiences of skilled craftsmen moving between European cities.
+                            </p>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-300 font-bold mb-2">Gabor Gelleri's <em>From Touring to Training</em></h4>
+                            <p className="text-gray-300 text-xs leading-relaxed">
+                                Academic study examining the evolution and purposes of early modern travel, from educational tours to professional training journeys, illuminating the diverse motivations behind European travel during this period.
+                            </p>
+                        </div>
+
+                        <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
+                            <h4 className="text-amber-300 font-bold mb-2">Daniel Margocsy's <em>The Fuzzy Metrics of Money</em></h4>
+                            <p className="text-gray-300 text-xs leading-relaxed">
+                                <span className="font-semibold">Full title:</span> "The finances of travel and the reception of curiosities in early modern Europe."
+                                <br /><br />
+                                Scholarly examination of the economic dimensions of early modern travel, exploring how travelers financed their journeys and the complex monetary systems they navigated across different European territories.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -1378,7 +1412,7 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
       <div className="flex h-[95vh] max-h-[900px] relative z-10">
 
         <div className={`flex-grow flex flex-col space-y-4 bg-gradient-to-b from-stone-800/80 to-stone-900/80 p-4 border-2 ${borderColor} shadow-2xl transition-all duration-500 relative z-20 rounded-xl`}>
-           <MapView distanceTraveled={gameState.distanceTraveled} phase={gameState.phase} />
+           <MapView distanceTraveled={gameState.distanceTraveled} phase={gameState.phase} player={player} />
            <SuppliesBar
              phase={gameState.phase}
              health={gameState.health}
@@ -1386,7 +1420,12 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
              food={gameState.food}
              money={gameState.money}
              oxen={gameState.oxen}
+             ammunition={gameState.ammunition}
+             spareParts={gameState.spareParts}
+             hasWagon={gameState.hasWagon}
              location={gameState.currentLocation}
+             weather={gameState.weather}
+             terrain={gameState.terrain}
              rationLevel={gameState.rationLevel}
              onRationChange={(level) => setGameState({ ...gameState, rationLevel: level })}
              weeklyFocus={gameState.weeklyFocus}
@@ -1414,22 +1453,27 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                   </div>
               )}
               {!isLoading && !isGameOver && (
-                  <div className="flex flex-col gap-3 items-center w-full">
-                      {/* Travel button separated if it exists */}
+                  <div className="flex flex-col gap-3 items-center w-full max-w-4xl mx-auto">
+                      {/* Primary Action - Travel */}
                       {actionButtons.some(btn => btn.action === 'Travel') && (
-                        <div className="w-full flex justify-center">
-                          <button
-                            onClick={() => handleAction('Travel')}
-                            className="px-8 py-3 bg-amber-600 border-2 border-amber-400 text-stone-900 hover:bg-amber-500 hover:border-amber-300 hover:scale-105 transition-all rounded-lg font-bold text-lg shadow-2xl hover-glow"
-                          >
-                            🚶 (1) Travel (1 Week)
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => handleAction('Travel')}
+                          className="w-full max-w-md px-8 py-3 bg-amber-600 border-2 border-amber-400 text-stone-900 hover:bg-amber-500 hover:border-amber-300 hover:scale-105 transition-all rounded-lg font-bold text-lg shadow-2xl hover-glow"
+                        >
+                          🚶 (1) Travel (1 Week)
+                        </button>
                       )}
-                      {/* Other action buttons */}
-                      <div className="flex flex-wrap gap-4 justify-center">
-                          {actionButtons.filter(btn => btn.action !== 'Travel').map((btn) => {
-                              const staminaRequiredActions = ['Hunt', 'Scout Ahead', 'Forage for Herbs', 'Repair Wagon'];
+
+                      {/* All Other Actions - Horizontal Layout */}
+                      <div className="flex flex-wrap gap-2 justify-center w-full">
+                          {/* Active Actions (Hunt, etc.) */}
+                          {actionButtons.filter(btn =>
+                              btn.action !== 'Travel' &&
+                              btn.action !== 'Make Camp' &&
+                              btn.action !== 'Break Camp' &&
+                              btn.action !== 'Leave City'
+                          ).map((btn) => {
+                              const staminaRequiredActions = ['Hunt', 'Forage for Herbs', 'Repair Wagon'];
                               const requiresStamina = staminaRequiredActions.includes(btn.action);
                               const isDisabled = isLoading || (requiresStamina && gameState.stamina <= 0);
 
@@ -1445,6 +1489,30 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                                   </ActionButton>
                               );
                           })}
+
+                          {/* Rest/Camp Actions */}
+                          {actionButtons.filter(btn =>
+                              btn.action === 'Make Camp' ||
+                              btn.action === 'Break Camp' ||
+                              btn.action === 'Leave City'
+                          ).map((btn) => (
+                              <button
+                                key={btn.action}
+                                onClick={() => handleAction(btn.action as PlayerAction)}
+                                className={`px-6 py-2.5 ${
+                                  btn.action === 'Make Camp'
+                                    ? 'bg-sky-700 border-2 border-sky-500 text-white hover:bg-sky-600'
+                                    : btn.action === 'Leave City'
+                                    ? 'bg-purple-700 border-2 border-purple-500 text-white hover:bg-purple-600'
+                                    : 'bg-amber-700 border-2 border-amber-500 text-white hover:bg-amber-600'
+                                } transition-all rounded-lg font-bold text-sm shadow-lg min-w-[140px]`}
+                              >
+                                  {btn.action === 'Make Camp' && '🏕️ '}
+                                  {btn.action === 'Break Camp' && '🌅 '}
+                                  {btn.action === 'Leave City' && '🚪 '}
+                                  {btn.label}
+                              </button>
+                          ))}
                       </div>
 
                       {/* DEV MODE Controls */}
@@ -1454,12 +1522,12 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
                           <div className="flex flex-wrap gap-2 justify-center">
                             <button
                               onClick={() => {
-                                const nextCheckpoint = ROUTE_CHECKPOINTS[nextCheckpointIndex];
+                                const nextCheckpoint = player.routeCheckpoints[nextCheckpointIndex];
                                 if (nextCheckpoint) {
                                   setGameState(prev => ({
                                     ...prev,
                                     distanceTraveled: nextCheckpoint.distance,
-                                    distanceToRome: TOTAL_DISTANCE_TO_ROME - nextCheckpoint.distance,
+                                    distanceToRome: player.distanceToRome - nextCheckpoint.distance,
                                     phase: 'in_city',
                                     currentLocation: `the city of ${nextCheckpoint.name}`
                                   }));
@@ -1520,6 +1588,11 @@ const GameUI: React.FC<GameUIProps> = ({ player, initialGameState, characterImag
           onClose={() => setCurrentEncounter(null)}
           isProcessing={isProcessingEncounter}
         />
+      )}
+
+      {/* Start Guide - Shows on first game load */}
+      {showStartGuide && (
+        <StartGuide onClose={() => setShowStartGuide(false)} />
       )}
     </>
   );
