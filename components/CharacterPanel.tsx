@@ -46,8 +46,17 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ player, imageUrl, gameS
   return (
     <div className={`bg-gradient-to-b from-stone-800/80 to-stone-900/80 p-4 border-2 ${borderColor} shadow-2xl text-center h-full flex flex-col transition-all duration-500 rounded-xl hover-lift`}>
       <h2 className="text-2xl text-amber-300 tracking-wider text-shadow-glow">{player.name}</h2>
-      <p className="text-md text-amber-100 mb-3">{player.profession}</p>
-      
+      <p className="text-md text-amber-100 mb-1">{player.profession}</p>
+
+      {/* Journey Exigence Display */}
+      <div className="mb-3 px-2 py-1 bg-stone-900/50 border border-amber-600/30 rounded-md">
+        <div className="text-xs text-amber-400 uppercase tracking-wide">Journey</div>
+        <div className="text-sm text-amber-100 font-semibold flex items-center justify-center gap-1">
+          <span>🎯</span>
+          <span>{player.journeyReason}</span>
+        </div>
+      </div>
+
       <div className={`w-full aspect-square mx-auto border-4 ${borderColor} overflow-hidden mb-4 transition-colors duration-500 rounded-2xl shadow-xl`}>
         {imageUrl ? (
           <img src={imageUrl} alt={`Portrait of ${player.name}`} className="w-full h-full object-contain bg-stone-900" />
@@ -75,10 +84,25 @@ const CharacterPanel: React.FC<CharacterPanelProps> = ({ player, imageUrl, gameS
             </div>
         )}
 
+        {gameState.buffs && gameState.buffs.length > 0 && (
+             <div className="border-b border-amber-600/20 pb-2 mb-3">
+                <h3 className="text-lg text-green-300 mb-1 tracking-wider">Active Buffs</h3>
+                <div className="space-y-1">
+                    {gameState.buffs.map((buff, index) => (
+                        <div key={index} className="bg-green-900/20 border border-green-600/30 rounded p-2">
+                            <p className="text-sm font-bold text-green-300">✨ {buff.type}</p>
+                            <p className="text-xs text-gray-300 italic">{buff.description}</p>
+                            <p className="text-xs text-green-400 mt-1">{buff.duration} week{buff.duration !== 1 ? 's' : ''} remaining</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
         <div className="space-y-2">
             <InfoButton onClick={() => onOpenWindow('Description')}>Description</InfoButton>
             <InfoButton onClick={() => onOpenWindow('Party')}>Family</InfoButton>
-            <InfoButton onClick={() => onOpenWindow('Inventory')}>Inventory</InfoButton>
+            <InfoButton onClick={() => onOpenWindow('Storage')}>Storage</InfoButton>
             <InfoButton onClick={() => onOpenWindow('History')}>History</InfoButton>
             <InfoButton onClick={() => onOpenWindow('References')}>References</InfoButton>
         </div>

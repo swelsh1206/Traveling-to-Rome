@@ -178,8 +178,8 @@ const EncounterWindow: React.FC<EncounterWindowProps> = ({
                 };
 
                 // Check if player can afford money options
-                const canAfford = option.type !== 'money' || !option.moneyCost ||
-                                 option.moneyCost > 0 || gameState.money >= Math.abs(option.moneyCost);
+                const canAfford = option.type !== 'money' || !option.ducatsCost ||
+                                 option.ducatsCost > 0 || gameState.ducats >= Math.abs(option.ducatsCost);
 
                 // Get player skill value for skill options
                 const playerSkill = option.type === 'skill' && option.skill ?
@@ -210,11 +210,11 @@ const EncounterWindow: React.FC<EncounterWindowProps> = ({
                         )}
 
                         {/* Show money info */}
-                        {option.type === 'money' && option.moneyCost && (
+                        {option.type === 'money' && option.ducatsCost && (
                           <div className="text-xs mt-1 bg-black/30 rounded px-2 py-1">
-                            {option.moneyCost < 0 ?
-                              <span className="text-red-300">Cost: {Math.abs(option.moneyCost)} coins</span> :
-                              <span className="text-green-300">Gain: +{option.moneyCost} coins</span>
+                            {option.ducatsCost < 0 ?
+                              <span className="text-red-300">Cost: {Math.abs(option.ducatsCost)} ducats</span> :
+                              <span className="text-green-300">Gain: +{option.ducatsCost} ducats</span>
                             }
                             {!canAfford && <span className="text-red-400 ml-1">(Can't afford!)</span>}
                           </div>

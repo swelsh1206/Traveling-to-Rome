@@ -49,7 +49,7 @@ const StartGuide: React.FC<StartGuideProps> = ({ onClose }) => {
                 <p className="text-xs text-gray-300 ml-5">Consumed by your party every time you travel. Hunt, forage, or buy at markets.</p>
               </div>
               <div>
-                <span className="text-yellow-400 font-bold">💰 Money:</span>
+                <span className="text-yellow-400 font-bold">💰 Ducats:</span>
                 <p className="text-xs text-gray-300 ml-5">Depending on your start, amount will differ. Buy supplies, medicine, and wagon repairs at cities.</p>
               </div>
             </div>

@@ -37,6 +37,7 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top' }
 
       const MARGIN = 16;
       const OFFSET = 8;
+      const ESTIMATED_TOOLTIP_HEIGHT = 100; // Approximate height for boundary checks
 
       let top = 0;
       let left = 0;
@@ -47,12 +48,13 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top' }
         case 'top':
           top = containerRect.top - OFFSET;
           left = containerRect.left + containerRect.width / 2;
-          if (top < MARGIN) newPosition = 'bottom';
+          // Check if tooltip would go off top of screen (including estimated height)
+          if (top - ESTIMATED_TOOLTIP_HEIGHT < MARGIN) newPosition = 'bottom';
           break;
         case 'bottom':
           top = containerRect.bottom + OFFSET;
           left = containerRect.left + containerRect.width / 2;
-          if (top > viewportHeight - MARGIN) newPosition = 'top';
+          if (top + ESTIMATED_TOOLTIP_HEIGHT > viewportHeight - MARGIN) newPosition = 'top';
           break;
         case 'left':
           top = containerRect.top + containerRect.height / 2;
@@ -88,11 +90,15 @@ const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top' }
         }
       }
 
+      // Additional safety: clamp tooltip position to viewport bounds
+      const finalTop = Math.max(MARGIN, Math.min(top, viewportHeight - MARGIN));
+      const finalLeft = Math.max(MARGIN, Math.min(left, viewportWidth - MARGIN));
+
       setAdjustedPosition(newPosition);
       setTooltipStyle({
         position: 'fixed',
-        top: `${top}px`,
-        left: `${left}px`,
+        top: `${finalTop}px`,
+        left: `${finalLeft}px`,
         zIndex: 9999,
       });
     }

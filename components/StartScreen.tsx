@@ -1,12 +1,35 @@
 
 import React, { useState } from 'react';
 import ActionButton from './ActionButton';
+import { MIN_YEAR, YEAR_RANGE } from '../constants';
 
 interface StartScreenProps {
-  onRandomStart: (year: number) => void;
-  onCustomStart: (year: number) => void;
+  onRandomStart: (year: number, difficulty: 'normal' | 'hard') => void;
+  onCustomStart: (year: number, difficulty: 'normal' | 'hard') => void;
   onDevModeChange?: (enabled: boolean) => void;
 }
+
+// Reusable DEV MODE component
+const DevModeInput: React.FC<{
+  password: string;
+  enabled: boolean;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}> = ({ password, enabled, onChange }) => (
+  <div className="absolute bottom-4 right-4">
+    <div className="flex items-center gap-2">
+      <input
+        type="password"
+        value={password}
+        onChange={onChange}
+        placeholder="DEV"
+        className="w-16 px-2 py-1 bg-stone-900/50 border border-stone-600 rounded text-xs text-gray-400 focus:outline-none focus:border-amber-500"
+      />
+      {enabled && (
+        <span className="text-xs text-green-400 font-bold">✓ DEV</span>
+      )}
+    </div>
+  </div>
+);
 
 const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart, onDevModeChange }) => {
   const [devPassword, setDevPassword] = useState('');
@@ -15,11 +38,12 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
   const [showDiceRoll, setShowDiceRoll] = useState(false);
   const [diceRolling, setDiceRolling] = useState(false);
   const [revealedYear, setRevealedYear] = useState<number | null>(null);
+  const [difficulty, setDifficulty] = useState<'normal' | 'hard'>('normal');
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.toUpperCase();
     setDevPassword(value);
-    if (value === 'SEANW') {
+    if (value === 'SRW') {
       setDevModeEnabled(true);
       onDevModeChange?.(true);
     } else {
@@ -33,9 +57,9 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
     setShowDiceRoll(true);
     setDiceRolling(true);
 
-    // Roll a random year between 1450-1800
+    // Roll a random year between MIN_YEAR and MAX_YEAR
     setTimeout(() => {
-      const year = Math.floor(Math.random() * 351) + 1450;
+      const year = Math.floor(Math.random() * YEAR_RANGE) + MIN_YEAR;
       setRevealedYear(year);
       setDiceRolling(false);
     }, 2500); // 2.5 seconds of dice rolling
@@ -53,13 +77,13 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
             backgroundSize: '100% 100%',
             backgroundRepeat: 'no-repeat',
             filter: 'brightness(1.1)',
-            width: '100vw',
+            width: '150vw',
             height: '100vh'
           }}
         />
 
         {/* Content Overlay */}
-        <div className="relative z-10 bg-stone-900/85 p-12 border-4 border-amber-600 shadow-2xl text-center backdrop-blur-md rounded-xl max-w-4xl mx-auto animate-fade-in">
+        <div className="relative z-10 bg-stone-900/90 p-12 border-4 border-amber-600 shadow-2xl text-center backdrop-blur-md rounded-xl max-w-[200rem] mx-auto animate-fade-in">
           <div className="mb-8">
             <h1 className="text-7xl text-amber-300 mb-4 tracking-wider font-bold animate-slide-in drop-shadow-lg">Le Chemin de Rome</h1>
             <p className="text-3xl text-amber-200 mb-2 italic">The Road to Rome</p>
@@ -96,7 +120,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
             onClick={handleWriteWill}
             className="px-12 py-4 bg-gradient-to-r from-amber-600 to-amber-700 border-3 border-amber-400 text-white hover:from-amber-500 hover:to-amber-600 transition-all rounded-lg font-bold text-xl shadow-2xl hover:scale-105 hover:shadow-amber-500/50"
           >
-            WRITE YOUR WILL.
+            WRITE YOUR WILL
           </button>
 
           <p className="text-xs text-gray-400 mt-8">
@@ -104,20 +128,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
           </p>
 
           {/* DEV MODE Password Input */}
-          <div className="absolute bottom-4 right-4">
-            <div className="flex items-center gap-2">
-              <input
-                type="password"
-                value={devPassword}
-                onChange={handlePasswordChange}
-                placeholder="DEV"
-                className="w-16 px-2 py-1 bg-stone-900/50 border border-stone-600 rounded text-xs text-gray-400 focus:outline-none focus:border-amber-500"
-              />
-              {devModeEnabled && (
-                <span className="text-xs text-green-400 font-bold">✓ DEV</span>
-              )}
-            </div>
-          </div>
+          <DevModeInput password={devPassword} enabled={devModeEnabled} onChange={handlePasswordChange} />
         </div>
       </div>
     );
@@ -141,7 +152,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
         />
 
         {/* Content Overlay */}
-        <div className="relative z-10 bg-stone-900/90 p-16 border-4 border-amber-600 shadow-2xl text-center backdrop-blur-md rounded-xl max-w-2xl mx-auto">
+        <div className="relative z-10 bg-stone-900/90 p-16 border-4 border-amber-600 shadow-2xl text-center backdrop-blur-md rounded-xl max-w-4xl mx-auto">
           {diceRolling ? (
             <>
               <h2 className="text-5xl text-amber-300 mb-8 font-bold">God Decides...</h2>
@@ -173,7 +184,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
 
   // Character selection screen
   return (
-    <div className="bg-stone-800/80 p-10 border-4 border-amber-500 shadow-lg text-center backdrop-blur-sm rounded-xl max-w-4xl mx-auto animate-fade-in">
+    <div className="bg-stone-800/60 p-10 border-4 border-amber-500 shadow-lg text-center backdrop-blur-sm rounded-xl max-w-5xl mx-auto animate-fade-in">
       <h1 className="text-6xl text-amber-300 mb-4 tracking-wider font-bold">Le Chemin de Rome</h1>
       <p className="text-2xl text-amber-200 mb-8 italic">The Road to Rome</p>
 
@@ -184,9 +195,40 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
         </p>
       </div>
 
+      {/* Difficulty Selection */}
+      <div className="max-w-xl mx-auto mb-8">
+        <div className="bg-stone-900/50 border-2 border-amber-600/30 rounded-lg p-4">
+          <h3 className="text-amber-300 text-sm uppercase tracking-wide mb-3 text-center">Select Difficulty</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setDifficulty('normal')}
+              className={`px-4 py-3 rounded-lg font-bold transition-all ${
+                difficulty === 'normal'
+                  ? 'bg-green-600 border-2 border-green-400 text-white'
+                  : 'bg-stone-700 border-2 border-stone-500 text-stone-300 hover:bg-stone-600'
+              }`}
+            >
+              <div className="text-lg mb-1">⚔️ Normal</div>
+              <div className="text-xs opacity-80">Base game difficulty</div>
+            </button>
+            <button
+              onClick={() => setDifficulty('hard')}
+              className={`px-4 py-3 rounded-lg font-bold transition-all ${
+                difficulty === 'hard'
+                  ? 'bg-red-600 border-2 border-red-400 text-white'
+                  : 'bg-stone-700 border-2 border-stone-500 text-stone-300 hover:bg-stone-600'
+              }`}
+            >
+              <div className="text-lg mb-1">💀 Hard</div>
+              <div className="text-xs opacity-80">Longer distances, rarer good rolls</div>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-8">
         {/* Random Start Mode */}
-        <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 border-2 border-purple-500/50 rounded-xl p-6 hover:border-purple-400 transition-all hover:scale-105 cursor-pointer group" onClick={() => onRandomStart(revealedYear!)}>
+        <div className="bg-gradient-to-br from-purple-900/30 to-indigo-900/30 border-2 border-purple-500/50 rounded-xl p-6 hover:border-purple-400 transition-all hover:scale-105 cursor-pointer group" onClick={() => onRandomStart(revealedYear!, difficulty)}>
           <div className="text-4xl mb-3">🙏</div>
           <h3 className="text-2xl text-purple-300 font-bold mb-3">God's Will</h3>
           <p className="text-gray-300 text-sm mb-4 leading-relaxed">
@@ -203,7 +245,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
         </div>
 
         {/* Custom Mode */}
-        <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 border-2 border-amber-500/50 rounded-xl p-6 hover:border-amber-400 transition-all hover:scale-105 cursor-pointer group" onClick={() => onCustomStart(revealedYear!)}>
+        <div className="bg-gradient-to-br from-amber-900/30 to-orange-900/30 border-2 border-amber-500/50 rounded-xl p-6 hover:border-amber-400 transition-all hover:scale-105 cursor-pointer group" onClick={() => onCustomStart(revealedYear!, difficulty)}>
           <div className="text-4xl mb-3">✍️</div>
           <h3 className="text-2xl text-amber-300 font-bold mb-3">Custom Mode</h3>
           <p className="text-gray-300 text-sm mb-4 leading-relaxed">
@@ -225,20 +267,7 @@ const StartScreen: React.FC<StartScreenProps> = ({ onRandomStart, onCustomStart,
       </p>
 
       {/* DEV MODE Password Input */}
-      <div className="absolute bottom-4 right-4">
-        <div className="flex items-center gap-2">
-          <input
-            type="password"
-            value={devPassword}
-            onChange={handlePasswordChange}
-            placeholder="DEV"
-            className="w-16 px-2 py-1 bg-stone-900/50 border border-stone-600 rounded text-xs text-gray-400 focus:outline-none focus:border-amber-500"
-          />
-          {devModeEnabled && (
-            <span className="text-xs text-green-400 font-bold">✓ DEV</span>
-          )}
-        </div>
-      </div>
+      <DevModeInput password={devPassword} enabled={devModeEnabled} onChange={handlePasswordChange} />
     </div>
   );
 };

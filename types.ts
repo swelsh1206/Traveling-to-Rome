@@ -18,6 +18,8 @@ export enum Profession {
 
 export type Gender = 'Male' | 'Female';
 
+export type Difficulty = 'normal' | 'hard';
+
 export type Religion = 'Catholic' | 'Protestant';
 
 export type SocialClass = 'Peasant' | 'Craftsman' | 'Merchant Class' | 'Minor Nobility' | 'High Nobility';
@@ -30,14 +32,16 @@ export type JourneyReason =
   | 'Trade Opportunity'
   | 'Scholarly Research'
   | 'Family Vow'
-  | 'Escaping Persecution';
+  | 'Escaping Persecution'
+  | 'For Adventure and Pleasure' // Rare - traveling for fun
+  | 'The Grand Tour';            // For nobility - educational journey across Europe
 
 export type TransportationType = 'On Foot' | 'Horse' | 'Wagon' | 'Carriage' | 'Royal Procession';
 
 export type Inventory = Record<string, number>;
 
 export interface CharacterStats {
-  money: number;
+  ducats: number;
   food: number;
   oxen: number;
   description: string;
@@ -96,6 +100,7 @@ export interface Skills {
 export interface PartyMember {
     name: string;
     role: 'spouse' | 'child' | 'companion';
+    age: number;
     health: number;
     conditions: Condition[]; // Legacy
     injuries: Injury[]; // New robust injury system
@@ -115,10 +120,9 @@ export interface GameState {
   distanceToRome: number;
   health: number;
   food: number;
-  money: number;
+  ducats: number;
   oxen: number;
   stamina: number;
-  spareParts: number; // Spare parts for wagon repairs
   hasWagon: boolean; // Whether player has a wagon
   transportation: TransportationType; // Method of travel affects speed
   inventory: Inventory;
@@ -134,6 +138,7 @@ export interface GameState {
   skills: Skills;
   rationLevel: RationLevel;
   weeklyFocus: WeeklyFocus;
+  buffs: Buff[]; // Active temporary buffs
 }
 
 export interface Player {
@@ -168,12 +173,26 @@ export type PlayerAction =
     | 'Travel' | 'Rest' | 'Hunt' | 'Make Camp' | 'Scout Ahead'
     | 'Craft' | 'Use Item' | 'Break Camp' | 'Feed Party'
     | 'Forage for Herbs' | 'Repair Wagon'
-    | 'Visit Market' | 'Leave City'
+    | 'Visit Market' | 'Leave City' | 'Stay at Inn'
     | 'Trade with Merchant' | 'Ignore Merchant';
 
 export type WeeklyFocus = 'normal' | 'cautious' | 'fast' | 'forage' | 'bond' | 'vigilant';
 
-export type WindowType = 'Description' | 'Inventory' | 'History' | 'Party' | 'Market' | 'Hunt' | 'References' | 'Encounter' | 'Index';
+// Buff system for temporary status effects
+export type BuffType = 'Well Rested' | 'Inn Comfort';
+
+export interface Buff {
+  type: BuffType;
+  duration: number; // Weeks remaining
+  effects: {
+    healthRegen?: number; // Health per week
+    staminaBonus?: number; // Extra stamina regeneration per week
+    immuneToExhaustion?: boolean;
+  };
+  description: string;
+}
+
+export type WindowType = 'Description' | 'Storage' | 'History' | 'Party' | 'Market' | 'Hunt' | 'References' | 'Encounter' | 'Index' | 'Crafting' | 'Forage';
 
 export type EncounterType =
     | 'traveler'      // Friendly traveler with information or trade
@@ -185,7 +204,8 @@ export type EncounterType =
     | 'priest'        // Religious figure
     | 'refugee'       // Fleeing from war/plague
     | 'noble'         // Aristocrat traveling
-    | 'healer';       // Wandering physician/herbalist
+    | 'healer'        // Wandering physician/herbalist
+    | 'tourist';      // Rare - someone traveling for pleasure and adventure
 
 export interface EncounterNPC {
     name: string;
@@ -194,6 +214,7 @@ export interface EncounterNPC {
     mood: 'friendly' | 'neutral' | 'hostile' | 'desperate';
     dialogue: string[]; // Conversation history
     backstory?: string; // Optional AI-generated backstory
+    travelExigence?: string; // Why this person is traveling (e.g., "fleeing religious persecution", "seeking trade opportunities")
 }
 
 export interface Encounter {
@@ -210,8 +231,8 @@ export interface EncounterOption {
     description: string; // What this option does
     skill?: keyof Skills; // For skill checks
     skillThreshold?: number; // Difficulty of the skill check
-    moneyCost?: number; // Cost (negative) or reward (positive)
-    moneyDescription?: string; // What the money transaction represents
+    ducatsCost?: number; // Cost (negative) or reward (positive)
+    ducatsDescription?: string; // What the ducats transaction represents
 }
 
 export interface HuntableAnimal {

@@ -27,10 +27,12 @@ const outcomeSchema = {
                     description: "For Travel action only: 2-4 brief bullet points describing what happened during the week (e.g., 'Passed through a war-torn village', 'Shared camp with pilgrims', 'Narrowly avoided bandits'). Keep each point to 3-7 words. Omit for non-Travel actions.",
                     items: { type: Type.STRING }
                 },
+                instant_death: { type: Type.BOOLEAN, description: "RARE: Set to true ONLY for truly deadly outcomes (murder, fatal ambush, execution, deadly fall, etc.). Use VERY SPARINGLY - approximately 1-3% of dangerous encounters. Most negative outcomes should use health_change instead." },
+                death_message: { type: Type.STRING, description: "Required if instant_death is true. A 1-2 sentence description of how the player died." },
                 health_change: { type: Type.NUMBER, description: "Integer change in player health. Can be positive, negative, or zero." },
                 food_change: { type: Type.NUMBER, description: "IMPORTANT: For Travel actions, ALWAYS set to 0 (food consumption is calculated locally). For other actions, can be positive (finding food) or negative (special food loss) or zero." },
                 money_change: { type: Type.NUMBER, description: "Integer change in player money. Can be positive, negative, or zero." },
-                oxen_change: { type: Type.NUMBER, description: "Integer change in number of oxen. Can be positive, negative, or zero." },
+                oxen_change: { type: Type.NUMBER, description: "Integer change in number of mules. Can be positive, negative, or zero." },
                 distance_change: { type: Type.NUMBER, description: "Integer change in distance traveled. Usually zero unless the event causes it." },
                 merchant_encountered: { type: Type.BOOLEAN, description: "Optional. Set to true if the player encounters a traveling merchant on the road." },
                 inventory_changes: {
@@ -97,8 +99,9 @@ const encounterSchema = {
                             items: { type: Type.STRING }
                         },
                         backstory: { type: Type.STRING, description: "Optional brief backstory that explains who they are and why they're here. 1-2 sentences." },
+                        travelExigence: { type: Type.STRING, description: "REQUIRED: The specific reason or urgency driving this person to travel. Be historically specific (e.g., 'fleeing Spanish Inquisition witch trials', 'seeking refuge after Protestant army sacked hometown', 'delivering urgent message about noble succession dispute', 'pilgrimage to atone for sins after plague killed family'). 3-8 words." },
                     },
-                    required: ["name", "type", "description", "mood", "dialogue"]
+                    required: ["name", "type", "description", "mood", "dialogue", "travelExigence"]
                 },
                 situation: { type: Type.STRING, description: "What's happening when you meet this person. Sets the context. 2-3 sentences." },
                 options: {
@@ -112,8 +115,8 @@ const encounterSchema = {
                             description: { type: Type.STRING, description: "What this option does and potential consequences (1 sentence)." },
                             skill: { type: Type.STRING, description: "For skill type only: which skill is used (combat, diplomacy, survival, medicine, stealth, knowledge)." },
                             skillThreshold: { type: Type.NUMBER, description: "For skill type only: difficulty threshold (30=easy, 50=medium, 70=hard)." },
-                            moneyCost: { type: Type.NUMBER, description: "For money type only: amount spent (negative) or earned (positive)." },
-                            moneyDescription: { type: Type.STRING, description: "For money type only: what the money represents (e.g., 'bribe', 'payment', 'reward')." },
+                            ducatsCost: { type: Type.NUMBER, description: "For money type only: amount spent (negative) or earned (positive)." },
+                            ducatsDescription: { type: Type.STRING, description: "For money type only: what the ducats represent (e.g., 'bribe', 'payment', 'reward')." },
                         },
                         required: ["label", "type", "description"]
                     }
@@ -177,40 +180,104 @@ const getWeeklyFocusGuidance = (focus: string) => {
     }
 };
 
+const getHistoricalContext = (year: number, season: string, terrain: string) => {
+    let context = '';
+
+    // Major historical events by year range
+    if (year >= 1450 && year <= 1500) {
+        context += `The late 15th century: Fall of Constantinople (1453) sends Greek scholars fleeing west. Printing press spreads new ideas. Columbus reaches the Americas (1492). `;
+    } else if (year >= 1501 && year <= 1530) {
+        context += `Early Reformation era: Luther's 95 Theses (1517) splits Christendom. Diet of Worms (1521). Peasants' War (1524-25). Sack of Rome (1527). `;
+    } else if (year >= 1531 && year <= 1560) {
+        context += `Height of Reformation: Calvin in Geneva. Council of Trent begins (1545). Religious wars spreading. Holy Roman Empire in turmoil. `;
+    } else if (year >= 1561 && year <= 1598) {
+        context += `French Wars of Religion (1562-98): St. Bartholomew's Day Massacre (1572). Spanish Armada (1588). Religious violence and persecution everywhere. `;
+    } else if (year >= 1599 && year <= 1648) {
+        context += `Thirty Years' War era (1618-48): Most devastating conflict yet. Mercenary armies ravage countryside. Witch hunts intensify. Famine and plague follow armies. `;
+    } else if (year >= 1649 && year <= 1700) {
+        context += `Post-Westphalia era: Religious wars winding down but devastation remains. Scientific Revolution. Absolutist monarchies rising. `;
+    } else if (year >= 1701 && year <= 1750) {
+        context += `Age of Enlightenment dawning: War of Spanish Succession. Rise of Prussia. Last major witch trials. `;
+    } else if (year >= 1751 && year <= 1800) {
+        context += `Late Enlightenment: Seven Years' War. Encyclopédie published. American Revolution (1776). Seeds of French Revolution. `;
+    }
+
+    // Season-specific threats
+    if (season === 'Winter') {
+        context += `WINTER: Treacherous conditions, hypothermia risk, desperate refugees seeking shelter, frozen roads, armies in winter quarters (dangerous deserters), food scarce. `;
+    } else if (season === 'Spring') {
+        context += `SPRING: Roads muddy from melt, pilgrimage season begins, armies mobilizing, plague sometimes resurges, refugees from winter. `;
+    } else if (season === 'Summer') {
+        context += `SUMMER: Peak travel season, armies on campaign, bandits active, plague outbreaks in hot weather, festivals and fairs, witchcraft accusations. `;
+    } else if (season === 'Autumn') {
+        context += `AUTUMN: Harvest season (tensions over crops), armies seeking winter quarters, preparing for winter hardships, increased banditry. `;
+    }
+
+    // Terrain-specific details
+    if (terrain === 'Mountains') {
+        context += `ALPINE REGION: Avalanches, bandits in passes, isolated monasteries, smugglers, mercenary companies using mountain routes. `;
+    } else if (terrain === 'Forest') {
+        context += `DEEP FOREST: Outlaws and brigands, charcoal burners, hermits, folk magic practitioners, "pagan" holdouts, escaped criminals. `;
+    } else if (terrain === 'River Valley') {
+        context += `RIVER VALLEY: Bridge tolls, river pirates, flooding risk, trade routes (merchants and bandits), ferry crossings, mills and riverside villages. `;
+    }
+
+    return context;
+};
+
 const getSystemInstruction = (player: Player, gameState: GameState) => `
 You are a text-based RPG game master for "Le Chemin de Rome" (The Road to Rome).
-Setting: Early Modern Europe (1450-1650) - an era of religious upheaval, warfare, plague, and transformation. The Renaissance, Reformation, Counter-Reformation, and devastating religious wars define this period.
-The player is travelling from France to Rome through dangerous territories during this tumultuous age.
-The player is a ${player.gender} ${player.profession} named ${player.name}.
+Setting: Early Modern Europe, specifically the year ${gameState.year} during ${gameState.season} in ${gameState.terrain} terrain.
+${getHistoricalContext(gameState.year, gameState.season, gameState.terrain)}
+
+The player is travelling from ${player.startingCity} (${player.startingRegion}) to Rome through dangerous territories.
+The player is a ${player.gender} ${player.profession} named ${player.name}, age ${player.age}.
+Starting allegiance: ${player.startingRegion} under the rule of ${player.routeCheckpoints.length > 0 ? 'various lords and territories' : 'local authorities'}.
 ${player.gender === 'Female' ? `IMPORTANT: As a woman in Early Modern Europe, ${player.name} faces additional societal challenges and prejudices, but also has access to certain social networks (other women, religious communities) that men might not. Reflect historical reality while respecting the player's agency. Women travelers often disguised themselves as men, traveled in groups, or claimed religious purposes for protection.` : ''}
 ${getProfessionEventGuidance(player.profession)}
 ${getPartyStatusString(gameState.party)}
 ${getWeeklyFocusGuidance(gameState.weeklyFocus)}
+
 Current game state:
-- Day: ${gameState.day}
-- Player Health: ${gameState.health}
+- Day ${gameState.day} of journey (Date: ${gameState.year}, ${gameState.season})
+- Player Health: ${gameState.health}/100
 - Food: ${gameState.food}
-- Money: ${gameState.money}
-- Oxen: ${gameState.oxen}
+- Ducats: ${gameState.ducats}
 - Distance to Rome: ${gameState.distanceToRome} km
+- Current Weather: ${gameState.weather}
+- Current Terrain: ${gameState.terrain}
 - Inventory: ${JSON.stringify(gameState.inventory)}
 - Player Active Conditions: ${gameState.conditions.join(', ') || 'None'}
 
-Your role is to create DRAMATIC, EXCITING, and historically plausible outcomes for the player's actions.
-Early Modern Europe threats: Religious wars (Thirty Years' War, French Wars of Religion), bandits and brigands, plague epidemics, corrupt officials, witch hunts, mercenary companies, deserters, inquisitors, heretics, alchemists, charlatan healers, apocalyptic preachers.
-Generate VARIED and INTENSE events that reflect the player's PROFESSION: ambushes by bandits, encounters with soldiers, plague villages, religious zealots, fortune tellers, wounded travelers begging for help, abandoned battlefields with supplies, mysterious strangers with secrets, corrupt toll collectors, witch accusations, supernatural rumors, desperate refugees, trade opportunities, crafting requests.
+Your role is to create DRAMATIC, HISTORICALLY-ROOTED, and VARIED outcomes.
 
-IMPORTANT: Tailor events to the player's profession when possible. A merchant encounters different situations than a priest or soldier.
+IMPORTANT - HISTORICAL AUTHENTICITY & EDUCATION:
+- Reference real historical events, practices, and beliefs from this exact time period
+- Include period-appropriate language, concerns, and worldviews
+- Reflect the specific threats of this year and season
+- Consider how the player's starting region affects perceptions (accents, allegiances, suspicions)
+- Vary events based on terrain and weather conditions
+- Include realistic historical details: disease names, religious disputes, military units, trade goods, folk beliefs
+- EDUCATIONAL GOAL: Each event should teach the player something about Early Modern European history, culture, or daily life
+- Weave in historical facts naturally through NPC dialogue, descriptions, or situations (e.g., mention real battles, economic conditions, technological limitations, social customs)
+- Make history come alive through specific, authentic details rather than generic descriptions
 
-AVOID BORING DESCRIPTIONS like "the path is muddy" or "you make steady progress" - be DRAMATIC and SPECIFIC.
-Examples of GOOD descriptions:
-- "Armed men block the road ahead, demanding all travelers pay a 'protection fee' or face consequences."
-- "A wounded soldier crawls from the ditch, gasping that his company was ambushed by deserters just ahead."
-- "The village is silent. Too silent. Doors are marked with red crosses - plague."
-- "A wild-eyed woman grabs your arm, warning that the bridge ahead is watched by those who serve 'the old gods.'"
+VARY EVENT TYPES - Mix all of these:
+• Combat/Danger: Bandits, soldiers, mercenaries, wild animals, accidents
+• Medical: Plague villages, sick travelers, injuries, childbirth, poisoning
+• Religious: Pilgrims, heretics, inquisitors, Protestant-Catholic conflicts, witch accusations
+• Trade: Merchants, tolls, black markets, swindlers, rare goods
+• Social: Beggars, refugees, nobles, corrupt officials, marriage proposals
+• Supernatural: Folk magic, alchemy, prophecies, haunted sites, "miracles"
+• Environmental: Storms, floods, avalanches, forest fires, bridge collapses
+• Political: Spies, messengers, deserters, recruitment, border conflicts
+
+AVOID BORING DESCRIPTIONS - Be DRAMATIC and SPECIFIC with historical detail:
+- BAD: "The path is muddy"
+- GOOD: "The road churns with mud from Spanish supply wagons—deserters lurk in the tree line"
 
 Keep descriptions to 2-3 sentences maximum. Be DRAMATIC but CONCISE.
-The journey is DANGEROUS and full of MORAL DILEMMAS.
+The journey is DANGEROUS and full of MORAL DILEMMAS rooted in historical reality.
 
 IMPORTANT - FAMILY RELATIONSHIPS:
 Consider how events affect family dynamics. Use party_changes to reflect:
@@ -232,29 +299,30 @@ const getActionPrompt = (action: PlayerAction, profession: Profession): string =
 
 IMPORTANT INSTRUCTIONS:
 1. The 'description' should be SHORT (1 sentence) - either a summary of an uneventful week OR describe ONE major event if something dramatic happened.
-   - Uneventful week example: "The week passes without major incident."
-   - Major event example: "Armed bandits ambush your wagon, demanding everything you own!"
+   - Uneventful week example: "You pass through countryside marked by old battle scars."
+   - Major event example: "A Habsburg patrol stops you at sword-point, demanding papers and searching for Protestant heretics!"
 
 2. The 'weekly_happenings' array should contain 2-4 brief bullet points (3-7 words each) describing what happened during the week:
-   - Examples: "Crossed a river at dawn", "Shared camp with pilgrims", "Oxen went lame, slowed progress", "Heavy rain for three days"
-   - Mix mundane and interesting happenings
+   - Examples: "Crossed the Rhone at Lyon", "Shared camp with Franciscan friars", "Passed burned-out farmsteads", "Avoided landsknecht mercenaries", "Heavy snow in mountain pass"
+   - Mix mundane and historically-specific details
    - If there's a MAJOR dramatic event (bandits, plague, etc.), one of the bullets should reference it, and the description should focus on it
-   - If it's a quiet week, bullets should be more mundane travel details
+   - If it's a quiet week, bullets should reflect period-accurate travel details
+   - INCLUDE HISTORICAL SPECIFICITY: mention real places if near cities, specific military units (landsknechts, tercios, musketeers), actual religious orders, period diseases (sweating sickness, dysentery, plague), real trade goods
 
-Examples of DRAMATIC events (only occasionally):
-- Bandit ambush demanding valuables
-- Encounter with plague refugees
-- Military checkpoint with suspicious soldiers
-- Finding a corpse with mysterious items
-- Witnessing an execution or witch burning
-- Crossing paths with dangerous mercenaries
-- Stumbling upon a hidden shrine or cult gathering
-- Being accused of witchcraft by villagers
-- Finding an abandoned battlefield with supplies (and bodies)
-- Meeting a desperate alchemist fleeing the Inquisition
+Examples of VARIED DRAMATIC events (randomize - don't repeat patterns):
+• Military: Mercenary patrol demanding tolls, deserters begging for food, battlefield looting opportunities, conscription attempts, spy accusations
+• Religious: Pilgrim procession, witch trial, heretic burning, Protestant-Catholic border tensions, relic peddler, wandering preacher
+• Disease: Plague village (red crosses on doors), "sweating sickness" victim, leprosarium, quarantine checkpoint
+• Criminal: Bandit ambush, highwaymen, pickpockets at market, corrupt toll collector, smugglers offering deals
+• Trade: Merchant caravan, fair or market day, counterfeit goods, luxury items from Orient, guild disputes
+• Folk/Supernatural: "Haunted" forest, alchemist workshop, fortune teller, cursed well, folk healer, werewolf rumors
+• Environmental: Bridge washed out, avalanche, forest fire, storm damage, river flooding, mudslide blocking pass
+• Social: Refugee family, noble hunting party, arranged marriage procession, wandering scholar, tavern brawl
+• Political: Border checkpoint, messenger with urgent news, tax collector, lord demanding service, succession dispute
 
-The outcome must include 'distance_change' between 15 and 40 km.
-There's a small chance of encountering a traveling merchant.
+VARY THE EVENT TYPE each time - track what kinds of events have happened recently and choose different categories.
+The outcome must include 'distance_change' between 15 and 40 km (affected by weather, terrain, and events).
+There's a 15% chance of encountering a traveling merchant.
 Consider food consumption and health impacts from the week's travel.`;
         case 'Rest':
              return "The player rests. Keep it brief but make it feel earned. Maybe they find a moment of peace, or their rest is disturbed by nightmares of the road. 'distance_change' must be 0. Restores health and removes 'Exhausted' condition.";
@@ -388,14 +456,25 @@ export const processEventChoice = async (player: Player, gameState: GameState, s
 The player chose to respond: "${playerChoice}"
 
 Based on their choice, generate an outcome that:
-- Could be positive, negative, or neutral
-- Should logically follow from their choice
-- May affect health, resources, inventory, or conditions
+- MUST have tangible gains or losses (health, food, ducats, items, conditions, etc.)
+- IMPORTANT: Every outcome MUST include at least one resource change (positive or negative)
+- Should logically follow from their choice and have clear consequences
+- Risky/brave choices: potential for big gains OR big losses
+- Cautious choices: smaller but safer outcomes
+- Generous choices: cost resources but may gain relationship/moral benefits
+- Selfish choices: gain resources but may cost relationships or safety
 - Should be realistic to Early Modern European travel (1450-1650)
 - Should take into account the player's profession when relevant
-- Keep description to 2-3 sentences
+- Keep description to 2-3 sentences that clearly explain the gains/losses
 
-Generate an appropriate outcome.`;
+Examples:
+- Help wounded stranger: Lose 5 health (tending wounds), gain Bandages, lose 2 food (sharing), +5 relationship
+- Attack bandits: Lose 10-20 health (combat), gain 15-30 ducats (loot), potential conditions (Wounded)
+- Flee danger: Lose 5 stamina (running), safe outcome, no gains
+- Trade with merchant: Lose ducats, gain specific items
+- Refuse to help: No resource change, -5 relationship (party disapproves)
+
+Generate an appropriate outcome with CLEAR gains or losses.`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
@@ -495,23 +574,59 @@ export const generateEncounter = async (player: Player, gameState: GameState): P
         const systemInstruction = getSystemInstruction(player, gameState);
         const professionHint = getProfessionEventGuidance(player.profession);
 
-        const prompt = `Generate a random encounter on the road to Rome. Early Modern Europe (1450-1650).
+        const prompt = `Generate a random encounter on the road to Rome. Year ${gameState.year}, ${gameState.season} season, ${gameState.terrain} terrain.
 ${professionHint}
 
 The encounter should introduce a specific NPC character that the player meets. This person should:
-- Have a clear personality and motivation
-- Present an interesting situation or dilemma
-- Be historically appropriate for the setting
+- Have a clear personality and motivation rooted in historical context
+- MUST have a specific travel exigence - a compelling reason why they are traveling on this dangerous road
+- Present an interesting situation or moral dilemma
+- Be HIGHLY SPECIFIC to the time period, using real historical details
+- Reflect the current year, season, terrain, and ongoing historical events
+- Have a historically accurate name for their region and ethnicity
 
-Good encounter examples:
-- A wounded pilgrim begging for food and medical aid, claims bandits took everything
-- A suspicious merchant offering "rare relics" at suspiciously low prices
-- A deserter soldier hiding in the woods, desperate and possibly dangerous
-- A traveling priest warning of heretics ahead, asking the player to report any suspicious activity
-- A beggar woman with a sick child, pleading for medicine or money
-- A group of refugees fleeing religious persecution, asking for guidance
-- A noble's servant looking for help finding their master who went missing
-- An old healer offering to trade remedies for supplies
+EDUCATIONAL ASPECT - VERY IMPORTANT:
+- Include subtle educational details about the historical period in the NPC's dialogue or situation
+- Reference real historical events, social customs, economic realities, or cultural practices of the era
+- The NPC might mention real places, recent historical events, or period-accurate concerns
+- Make the encounter teach the player something about Early Modern European life, society, or history
+- Examples: mention trade routes, religious tensions, political conflicts, daily life hardships, social hierarchies, technological limitations
+
+IMPORTANT: Every NPC MUST be traveling for a specific reason. Examples:
+- Fleeing religious persecution after heresy accusations
+- Seeking refuge from mercenary armies
+- Delivering urgent political message
+- Pilgrimage for religious penance
+- Escaping plague-stricken city
+- Seeking medical treatment in Rome
+- Pursuing someone who wronged them
+- Trading rare goods along the route
+
+HISTORICAL AUTHENTICITY - Include specific period details:
+• Names: Use period-appropriate names (e.g., German: Hans, Friedrich; French: Jean, Marie; Spanish: Diego, Isabel; Italian: Giovanni, Lucia)
+• Military units: Landsknechts, tercios, musketeers, cuirassiers, Swiss pikemen
+• Religious orders: Jesuits, Franciscans, Dominicans, Carmelites, Augustinians
+• Diseases: Plague (Black Death), sweating sickness, dysentery, consumption, dropsy
+• Occupations: Journeyman, guild master, pardoner, relic seller, alchemist, mountebank
+• Concerns: Heresy accusations, witch trials, mercenary violence, noble feuds, succession wars
+
+VARIED encounter examples (use historical specificity):
+• Military: Wounded Spanish tercio soldier from Flanders campaign, deserter from Swedish army fleeing execution, mercenary captain recruiting for Protestant cause
+• Religious: Jesuit missionary returning from New World, Protestant preacher fleeing Inquisition, pilgrim carrying suspicious "saint's bones", flagellant warning of God's wrath
+• Criminal: Highwayman veteran of religious wars, pickpocket from Italian city-states, smuggler moving heretical books, bandit claiming to be noble's bastard
+• Medical: Plague doctor with bird mask seeking patients, midwife accused of witchcraft, barber-surgeon offering bloodletting, herbalist with forbidden remedies
+• Trade: Venetian silk merchant, German banker, wool trader from Low Countries, spice merchant with Ottoman goods, charlatan alchemist selling "gold-making" secrets
+• Refugees: Family fleeing witch trials, Jews expelled from Spain, Huguenots escaping massacre, villagers whose homes were burned by mercenaries
+• Supernatural: "Wise woman" reading fortunes, exorcist pursuing demon, person claiming prophetic visions, former Inquisition prisoner with scars
+• Social: Runaway arranged marriage, bastard child seeking noble father, widow with inheritance dispute, scholar fleeing book burning
+
+DANGER AND DEATH:
+• This is a perilous journey - death is a real possibility
+• For VERY dangerous situations (armed robbery, ambush, execution, deadly fall), there is a SMALL chance (1-3%) of instant_death
+• Examples of instant_death scenarios: murdered by bandits during robbery, executed by authorities for heresy, fatal fall from cliff, killed in violent ambush
+• Most dangerous encounters should still use severe health_change (-30 to -50) rather than instant death
+• Only use instant_death for truly lethal situations where survival would be unrealistic
+• If instant_death is true, provide a death_message explaining how they died
 
 IMPORTANT: Provide EXACTLY 4 options in this specific order:
 
@@ -519,11 +634,12 @@ IMPORTANT: Provide EXACTLY 4 options in this specific order:
    - Involves combat or physical confrontation
    - Example: "Attack the bandit", "Draw your weapon", "Fight them off"
    - Description should mention combat risks and potential loot
+   - Very dangerous fights might result in severe injury or rarely death
 
 2. MONEY OPTION (type: "money")
-   - Involves spending money (negative moneyCost) or earning money (positive moneyCost)
-   - Set moneyCost (e.g., -50 for bribe, +30 for reward)
-   - Set moneyDescription (e.g., "bribe", "toll", "payment for help", "reward")
+   - Involves spending ducats (negative ducatsCost) or earning ducats (positive ducatsCost)
+   - Set ducatsCost (e.g., -50 for bribe, +30 for reward)
+   - Set ducatsDescription (e.g., "bribe", "toll", "payment for help", "reward")
    - Example: "Pay the toll" (cost -20), "Accept their offer" (reward +30)
 
 3. SKILL CHECK OPTION (type: "skill")
@@ -610,8 +726,8 @@ export const processEncounterAction = async (
 
         // Handle money transaction
         let moneyNote = "";
-        if (option.type === 'money' && option.moneyCost) {
-            moneyNote = `MONEY TRANSACTION: ${option.moneyCost < 0 ? 'Cost' : 'Reward'} of ${Math.abs(option.moneyCost)} coins (${option.moneyDescription})`;
+        if (option.type === 'money' && option.ducatsCost) {
+            moneyNote = `DUCATS TRANSACTION: ${option.ducatsCost < 0 ? 'Cost' : 'Reward'} of ${Math.abs(option.ducatsCost)} ducats (${option.ducatsDescription})`;
         }
 
         const prompt = `The player encountered ${npcInfo}
@@ -625,7 +741,7 @@ Generate an outcome that:
 - Reflects the NPC's personality, mood, and type
 - Is appropriate for the chosen action
 - ${skillCheckResult ? 'Takes into account whether the skill check succeeded or failed. Success = positive outcome, Failure = negative outcome or complications.' : ''}
-- ${moneyNote ? `Includes the money transaction in the outcome (set money_change to ${option.moneyCost}).` : ''}
+- ${moneyNote ? `Includes the ducats transaction in the outcome (set money_change to ${option.ducatsCost}).` : ''}
 - ${option.type === 'fight' ? 'Involves combat. Player may take damage but could gain loot. Consider player combat skill.' : ''}
 - Could involve rewards, consequences, or neutral results
 - May affect health, resources, inventory, or conditions

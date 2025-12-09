@@ -9,10 +9,9 @@ interface SuppliesBarProps {
   health: number;
   stamina: number;
   food: number;
-  money: number;
+  ducats: number;
   oxen: number;
   ammunition: number;
-  spareParts: number;
   hasWagon: boolean;
   location: string | null;
   weather: Weather;
@@ -61,7 +60,7 @@ const StatDisplay: React.FC<{ icon: string; value: string | number; label: strin
 };
 
 
-const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food, money, oxen, ammunition, spareParts, hasWagon, location, weather, terrain, rationLevel, onRationChange, weeklyFocus, onWeeklyFocusChange }) => {
+const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food, ducats, oxen, ammunition, hasWagon, location, weather, terrain, rationLevel, onRationChange, weeklyFocus, onWeeklyFocusChange }) => {
   const getPhaseInfo = () => {
     switch(phase) {
         case 'traveling':
@@ -205,13 +204,13 @@ const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food,
                 <div className="flex items-center space-x-2">
                     <span className="text-xs text-gray-400 uppercase tracking-wide">Resources</span>
                     <div className="flex items-center space-x-2 bg-stone-800/50 px-2 py-1 rounded border border-stone-600">
-                        <StatDisplay icon="💰" value={money} label="Money" currentValue={money} tooltip={STAT_TOOLTIPS.money} />
+                        <StatDisplay icon="💰" value={ducats} label="Ducats" currentValue={ducats} tooltip={STAT_TOOLTIPS.ducats} />
                         <span className="text-gray-600">|</span>
                         <StatDisplay icon="🥖" value={food} label="Food" currentValue={food} tooltip={STAT_TOOLTIPS.food} />
                         {oxen > 0 && (
                             <>
                                 <span className="text-gray-600">|</span>
-                                <StatDisplay icon="🐂" value={oxen} label="Oxen" currentValue={oxen} tooltip={STAT_TOOLTIPS.oxen} />
+                                <StatDisplay icon="🐴" value={oxen} label="Mules" currentValue={oxen} tooltip={STAT_TOOLTIPS.oxen} />
                             </>
                         )}
                     </div>
@@ -255,13 +254,7 @@ const SuppliesBar: React.FC<SuppliesBarProps> = ({ phase, health, stamina, food,
 
                 {/* Combat Resources */}
                 <div className="flex items-center space-x-2 bg-stone-800/50 px-2 py-1 rounded border border-stone-600">
-                    <StatDisplay icon="🔫" value={ammunition} label="Ammunition" currentValue={ammunition} tooltip="Ammunition for hunting. Required to hunt animals." />
-                    {hasWagon && (
-                        <>
-                            <span className="text-gray-600">|</span>
-                            <StatDisplay icon="🔧" value={spareParts} label="Parts" currentValue={spareParts} tooltip="Spare parts for wagon repairs. Required to fix a broken wagon." />
-                        </>
-                    )}
+                    <StatDisplay icon="🏹" value={ammunition} label="Ammunition" currentValue={ammunition} tooltip="Ammunition for hunting. Required to hunt animals." />
                 </div>
             </div>
         )}

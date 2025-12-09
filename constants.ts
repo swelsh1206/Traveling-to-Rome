@@ -1,5 +1,15 @@
 import { Profession, CharacterStats, HuntableAnimal, Gender } from './types';
 
+// Game year range constants
+export const MIN_YEAR = 1450;
+export const MAX_YEAR = 1800;
+export const YEAR_RANGE = MAX_YEAR - MIN_YEAR + 1; // 351 years
+
+// Difficulty constants
+export const HARD_MODE_MIN_DISTANCE = 1400; // Hard mode: only cities 1400km+ from Rome
+export const HARD_MODE_NOBLE_CHANCE = 0.002; // 0.2% for Royal/NobleWoman in hard mode (vs 0.5% normal)
+export const HARD_MODE_SCHOLAR_F_CHANCE = 0.01; // 1% for Scholar_F in hard mode (vs 2% normal)
+
 export const TOTAL_DISTANCE_TO_ROME = 1400; // km, approximate from central France (deprecated - use STARTING_CITIES)
 
 // Starting Cities across Europe (excluding Italy) with distances to Rome in km
@@ -57,6 +67,8 @@ export const STARTING_CITIES: StartingCity[] = [
   { name: 'Strasbourg', region: 'France', distance: 900, liege: 'Holy Roman Empire' },
   { name: 'Dijon', region: 'France', distance: 850, liege: 'Kingdom of France' },
   { name: 'Reims', region: 'France', distance: 1350, liege: 'Kingdom of France' },
+  { name: 'L\'Épine', region: 'France', distance: 1320, liege: 'Kingdom of France' },
+  { name: 'Mantes-la-Jolie', region: 'France', distance: 1420, liege: 'Kingdom of France' },
 
   // British Isles
   { name: 'London', region: 'England', distance: 1850, liege: 'Kingdom of England' },
@@ -97,7 +109,16 @@ export const STARTING_CITIES: StartingCity[] = [
   { name: 'Geneva', region: 'Switzerland', distance: 650, liege: 'Old Swiss Confederacy' },
   { name: 'Zurich', region: 'Switzerland', distance: 750, liege: 'Old Swiss Confederacy' },
   { name: 'Basel', region: 'Switzerland', distance: 900, liege: 'Old Swiss Confederacy' },
+  { name: 'Mulhouse', region: 'Swiss Canton of Basel', distance: 820, liege: 'Old Swiss Confederacy' },
   { name: 'Bern', region: 'Switzerland', distance: 800, liege: 'Old Swiss Confederacy' },
+
+  // Italian States
+  { name: 'Milan', region: 'Duchy of Milan', distance: 500, liege: 'Duchy of Milan' },
+  { name: 'Genoa', region: 'Republic of Genoa', distance: 450, liege: 'Republic of Genoa' },
+  { name: 'Florence', region: 'Grand Duchy of Tuscany', distance: 350, liege: 'Grand Duchy of Tuscany' },
+  { name: 'Venice', region: 'Republic of Venice', distance: 450, liege: 'Republic of Venice' },
+  { name: 'Bologna', region: 'Papal States', distance: 250, liege: 'Papal States' },
+  { name: 'Turin', region: 'Duchy of Savoy', distance: 600, liege: 'Duchy of Savoy' },
 
   // Scandinavia
   { name: 'Stockholm', region: 'Sweden', distance: 2400, liege: 'Kingdom of Sweden' },
@@ -119,6 +140,14 @@ export const STARTING_CITIES: StartingCity[] = [
 export const FRENCH_STARTING_CITIES = STARTING_CITIES
   .filter(city => city.region === 'France')
   .map(city => city.name);
+
+// Filter cities by difficulty
+export const getStartingCitiesForDifficulty = (difficulty: 'normal' | 'hard'): StartingCity[] => {
+  if (difficulty === 'hard') {
+    return STARTING_CITIES.filter(city => city.distance >= HARD_MODE_MIN_DISTANCE);
+  }
+  return STARTING_CITIES; // Normal mode: all cities available
+};
 
 // Gender symbols
 export const GENDER_SYMBOLS = {
@@ -164,20 +193,48 @@ export const generateRouteCheckpoints = (startingCity: StartingCity): Array<{ na
   const totalDistance = startingCity.distance;
   const checkpoints: Array<{ name: string; distance: number }> = [];
 
-  // Generate 5-8 checkpoints evenly spaced along the route
-  const numCheckpoints = Math.floor(totalDistance / 200) + 3; // Roughly every 200km
+  // Generate 5-10 checkpoints evenly spaced along the route - more smaller towns for realism
+  const numCheckpoints = Math.max(5, Math.min(10, Math.floor(totalDistance / 200) + 3)); // Roughly every 200km
   const spacing = totalDistance / (numCheckpoints + 1);
 
-  // Generic waypoint cities based on region and route
+  // Expanded waypoint pool with more variety and historical specificity
   const waypointPool = [
-    'a trading post', 'a fortified town', 'a monastery', 'a market town',
-    'a river crossing', 'a mountain pass', 'a pilgrimage site', 'a walled city',
-    'a bishop\'s seat', 'a free city', 'an abbey', 'a frontier garrison'
+    // Religious sites
+    'a pilgrimage shrine', 'a monastery', 'an abbey', 'a bishop\'s seat', 'a cathedral town',
+    'a hermitage', 'a convent', 'a priory', 'a holy spring', 'a reliquary chapel',
+
+    // Fortified settlements
+    'a fortified town', 'a walled city', 'a frontier garrison', 'a border fortress',
+    'a castle town', 'a citadel', 'a stronghold', 'a watchpost village',
+
+    // Trade & commerce
+    'a market town', 'a trading post', 'a merchant crossroads', 'a guild town',
+    'a toll station', 'a customs house', 'a fairground town', 'a caravan stop',
+
+    // Geographic features
+    'a river crossing', 'a mountain pass', 'a valley settlement', 'a bridge town',
+    'a ford village', 'a mountain hamlet', 'a lakeside village', 'a hilltop town',
+
+    // Administrative & political
+    'a free city', 'a ducal town', 'a county seat', 'a provincial capital',
+    'a magistrate\'s town', 'a border town', 'a chartered town',
+
+    // Small settlements
+    'a wayside inn', 'a farming village', 'a crossroads hamlet', 'a mill town',
+    'a mining village', 'a forest settlement', 'a roadside shrine', 'a coaching station',
+
+    // Historical types
+    'a plague-survivor village', 'a rebuilt settlement', 'a refugee camp', 'a war-torn village',
+    'a former battlefield', 'a contested border post', 'a neutral meeting ground'
   ];
+
+  // Shuffle the pool to ensure variety
+  const shuffledPool = [...waypointPool].sort(() => Math.random() - 0.5);
 
   for (let i = 1; i <= numCheckpoints; i++) {
     const distance = Math.round(spacing * i);
-    const waypointName = waypointPool[i % waypointPool.length];
+    // Use different waypoints without repetition when possible
+    const waypointName = shuffledPool[(i - 1) % shuffledPool.length];
     checkpoints.push({
       name: waypointName,
       distance: distance
@@ -189,220 +246,220 @@ export const generateRouteCheckpoints = (startingCity: StartingCity): Array<{ na
 
 export const PROFESSION_STATS: Record<Profession, CharacterStats> = {
   [Profession.Merchant]: {
-    money: 500,
-    food: 100,
+    ducats: 500,
+    food: 30, // Reduced from 100 - food is scarce and valuable
     oxen: 2,
     description: "Trader seeking new markets and trade opportunities in Rome. Gets a 15% bonus on sales and 15% discount on purchases at markets.",
     inventory: {
       'Fine Silks': 2,
-      'Spices': 3,
-      'Bandages': 2,
-      'Wine': 2,
+      'Spices': 2,
+      'Bandages': 3,
+      'Rope': 2,
+      'Cloth': 3,
+      'Wood': 2,
       'Compass': 1,
-      'Dried Fruit': 5,
     },
   },
   [Profession.Priest]: {
-    money: 250,
-    food: 120,
+    ducats: 250,
+    food: 35, // Reduced from 120 - relies on charity
     oxen: 0,
     description: "Man of God seeking spiritual renewal in Rome. Respected by others and may receive help more easily. Can craft Holy Water.",
     inventory: {
       'Holy Symbol': 1,
       'Bandages': 5,
       'Prayer Book': 1,
-      'Candles': 3,
-      'Holy Water': 2,
+      'Cloth': 3,
+      'Rope': 2,
+      'Wood': 2,
     },
   },
   [Profession.Soldier]: {
-    money: 300,
-    food: 80,
+    ducats: 300,
+    food: 25, // Reduced from 80 - expects to hunt/forage
     oxen: 2,
     description: "Veteran warrior traveling to Rome for work or escaping conflict. Hardy and resourceful, better at handling threats. Receives +10% bonus to hunting success.",
     inventory: {
-      'Sharpening Stone': 1,
-      'Jerky': 10,
-      'Bandages': 3,
-      'Rope': 2,
-      'Iron Rations': 5,
-      'Whetstone': 1,
+      'Jerky': 8,
+      'Bandages': 4,
+      'Rope': 3,
+      'Wood': 4,
+      'Cloth': 2,
+      'Metal Scraps': 2,
     },
   },
   [Profession.Blacksmith]: {
-      money: 350,
-      food: 100,
+      ducats: 350,
+      food: 28, // Reduced from 100
       oxen: 2,
       description: "Skilled craftsman seeking better opportunities in Rome. Can repair wagons using scrap metal while camped. Can craft repair kits.",
       inventory: {
-        'Scrap Metal': 5,
+        'Metal Scraps': 6,
         'Hammer': 1,
-        'Bandages': 2,
-        'Iron Nails': 3,
-        'Tinderbox': 1,
-        'Rope': 1,
+        'Bandages': 3,
+        'Wood': 4,
+        'Rope': 3,
+        'Cloth': 2,
       },
   },
   [Profession.Scholar]: {
-      money: 200,
-      food: 100,
+      ducats: 200,
+      food: 30, // Reduced from 100
       oxen: 0,
       description: "Learned scholar traveling to study ancient texts and Roman knowledge. Can read ancient texts and maps. Gains insight from books.",
       inventory: {
         'Scholarly Tome': 1,
-        'Ink & Quill': 3,
-        'Bandages': 2,
-        'Map': 1,
-        'Candles': 2,
-        'Lantern Oil': 2,
+        'Ink & Quill': 2,
+        'Bandages': 3,
+        'Rope': 2,
+        'Cloth': 3,
+        'Wood': 2,
       },
   },
   [Profession.Apothecary]: {
-      money: 275,
-      food: 110,
+      ducats: 275,
+      food: 32, // Reduced from 110
       oxen: 0,
       description: "Healer traveling to Rome to study medical knowledge. Can forage for medicinal herbs while camped. Expert in healing remedies.",
       inventory: {
-        'Medicinal Herbs': 5,
-        'Mortar and Pestle': 1,
-        'Bandages': 3,
-        'Honey': 3,
-        'Herbal Tea': 2,
-        'Dried Fruit': 3,
+        'Medicinal Herbs': 4,
+        'Bandages': 5,
+        'Cloth': 4,
+        'Rope': 2,
+        'Wood': 2,
+        'Honey': 2,
       },
   },
   [Profession.Royal]: {
-      money: 2000,
-      food: 200,
+      ducats: 2000,
+      food: 60, // Reduced from 200 - even nobles face scarcity
       oxen: 4,
       description: "Noble of exceptional wealth and privilege making a grand journey to Rome. Travels with an entourage and receives preferential treatment. Extremely rare.",
       inventory: {
-        'Fine Silks': 5,
-        'Wine': 10,
-        'Healing Poultice': 5,
-        'Holy Water': 3,
+        'Fine Silks': 4,
+        'Wine': 8,
+        'Healing Poultice': 4,
+        'Bandages': 10,
+        'Rope': 4,
+        'Wood': 5,
+        'Cloth': 5,
+        'Metal Scraps': 3,
         'Compass': 1,
         'Map': 1,
-        'Cheese Wheel': 10,
-        'Prayer Book': 1,
-        'Luxury Bundle': 2,
-        'Iron Rations': 20,
-        'Bandages': 10,
       },
   },
   // Female professions
   [Profession.Nun]: {
-    money: 200,
-    food: 110,
+    ducats: 200,
+    food: 32, // Reduced from 110
     oxen: 0,
     description: "Sister devoted to God, making a sacred journey to Rome. Respected in religious circles. Can provide spiritual guidance and has access to church resources.",
     inventory: {
       'Holy Symbol': 1,
       'Prayer Book': 1,
-      'Bandages': 4,
-      'Holy Water': 3,
-      'Candles': 4,
+      'Bandages': 5,
       'Medicinal Herbs': 2,
-      'Herbal Tea': 2,
+      'Cloth': 4,
+      'Rope': 2,
+      'Wood': 2,
     },
   },
   [Profession.Midwife]: {
-    money: 250,
-    food: 100,
+    ducats: 250,
+    food: 30, // Reduced from 100
     oxen: 0,
     description: "Healer traveling to Rome to learn advanced medical practices. Skilled in healing and childbirth. Trusted in communities for medical knowledge and herbal remedies.",
     inventory: {
       'Bandages': 6,
       'Medicinal Herbs': 4,
-      'Honey': 3,
-      'Healing Poultice': 2,
-      'Herbal Tea': 3,
-      'Dried Fruit': 3,
+      'Cloth': 5,
+      'Rope': 2,
+      'Wood': 2,
+      'Honey': 2,
     },
   },
   [Profession.Herbalist]: {
-    money: 260,
-    food: 105,
+    ducats: 260,
+    food: 32, // Reduced from 105
     oxen: 0,
     description: "Healer traveling to Rome to discover rare herbs and remedies. Expert in plants and natural remedies. Can forage for medicinal herbs and craft healing items.",
     inventory: {
-      'Medicinal Herbs': 6,
-      'Mortar and Pestle': 1,
-      'Bandages': 3,
-      'Honey': 4,
-      'Herbal Tea': 3,
-      'Dried Fruit': 4,
-      'Salted Fish': 2,
+      'Medicinal Herbs': 5,
+      'Bandages': 4,
+      'Cloth': 4,
+      'Rope': 2,
+      'Wood': 3,
+      'Honey': 3,
     },
   },
   [Profession.NobleWoman]: {
-    money: 1500,
-    food: 180,
+    ducats: 1500,
+    food: 55, // Reduced from 180
     oxen: 3,
     description: "Noblewoman of high birth making a grand journey to Rome. Commands respect and can leverage social connections.",
     inventory: {
-      'Fine Silks': 4,
-      'Wine': 8,
-      'Healing Poultice': 4,
-      'Holy Water': 2,
-      'Compass': 1,
-      'Map': 1,
-      'Cheese Wheel': 8,
-      'Prayer Book': 1,
-      'Luxury Bundle': 1,
-      'Iron Rations': 15,
+      'Fine Silks': 3,
+      'Wine': 6,
+      'Healing Poultice': 3,
       'Bandages': 8,
-      'Warm Clothing': 2,
+      'Rope': 3,
+      'Wood': 4,
+      'Cloth': 4,
+      'Metal Scraps': 2,
+      'Compass': 1,
     },
   },
   [Profession.Merchant_F]: {
-    money: 480,
-    food: 95,
+    ducats: 480,
+    food: 28, // Reduced from 95
     oxen: 2,
     description: "Savvy trader seeking new markets and trade opportunities in Rome. Built her business against societal odds. Gets a 15% bonus on sales and 15% discount on purchases at markets.",
     inventory: {
       'Fine Silks': 2,
       'Spices': 2,
-      'Bandages': 2,
-      'Wine': 2,
+      'Bandages': 3,
+      'Rope': 2,
+      'Cloth': 3,
+      'Wood': 2,
       'Compass': 1,
-      'Dried Fruit': 4,
-      'Cheese Wheel': 3,
     },
   },
   [Profession.Scholar_F]: {
-    money: 190,
-    food: 95,
+    ducats: 190,
+    food: 28, // Reduced from 95
     oxen: 0,
     description: "Rare woman of letters traveling to study ancient texts and Roman knowledge. Exceptionally educated. Faces societal barriers but possesses valuable knowledge.",
     inventory: {
       'Scholarly Tome': 1,
-      'Ink & Quill': 3,
-      'Bandages': 2,
-      'Map': 1,
-      'Candles': 2,
-      'Lantern Oil': 2,
-      'Prayer Book': 1,
+      'Ink & Quill': 2,
+      'Bandages': 3,
+      'Rope': 2,
+      'Cloth': 3,
+      'Wood': 2,
     },
   },
 };
 
 export const HUNTABLE_ANIMALS: HuntableAnimal[] = [
-    { name: 'Rabbit', successChance: 85, foodYield: [5, 10], injuryRisk: 0, description: "A small, quick target. High chance of success for a small meal." },
-    { name: 'Pheasant', successChance: 70, foodYield: [12, 18], injuryRisk: 0, description: "A beautiful game bird. Good eating and moderate difficulty." },
-    { name: 'Fox', successChance: 55, foodYield: [10, 15], injuryRisk: 5, description: "Cunning and fast. Not much meat, but a challenge to catch." },
-    { name: 'Deer', successChance: 60, foodYield: [20, 35], injuryRisk: 10, description: "A wary creature. A good prize, but it might escape or lash out if cornered." },
-    { name: 'Wild Boar', successChance: 40, foodYield: [40, 60], injuryRisk: 30, description: "A dangerous and aggressive beast. Very rewarding, but failure is often painful." },
-    { name: 'Wolf', successChance: 30, foodYield: [15, 25], injuryRisk: 45, description: "Extremely dangerous. Only the desperate or brave would hunt one." },
-    { name: 'Flock of Birds', successChance: 75, foodYield: [8, 15], injuryRisk: 0, description: "Requires a quick eye. A decent meal with little risk." },
-    { name: 'Wild Goat', successChance: 65, foodYield: [18, 28], injuryRisk: 8, description: "Lives in rocky terrain. Agile and can be dangerous when cornered." },
-    { name: 'Hare', successChance: 80, foodYield: [6, 12], injuryRisk: 0, description: "Larger than a rabbit. Very quick but offers a decent meal." },
-    { name: 'Duck', successChance: 72, foodYield: [10, 16], injuryRisk: 0, description: "Found near water. Easy to hunt and good for roasting." },
+    { name: 'Rabbit', successChance: 85, foodYield: [2, 5], injuryRisk: 0, description: "A small, quick target. High chance of success for a small meal." },
+    { name: 'Pheasant', successChance: 70, foodYield: [6, 9], injuryRisk: 0, description: "A beautiful game bird. Good eating and moderate difficulty." },
+    { name: 'Fox', successChance: 55, foodYield: [5, 8], injuryRisk: 5, description: "Cunning and fast. Not much meat, but a challenge to catch." },
+    { name: 'Deer', successChance: 60, foodYield: [10, 18], injuryRisk: 10, description: "A wary creature. A good prize, but it might escape or lash out if cornered." },
+    { name: 'Wild Boar', successChance: 40, foodYield: [20, 30], injuryRisk: 30, description: "A dangerous and aggressive beast. Very rewarding, but failure is often painful." },
+    { name: 'Wolf', successChance: 30, foodYield: [8, 13], injuryRisk: 45, description: "Extremely dangerous. Only the desperate or brave would hunt one." },
+    { name: 'Flock of Birds', successChance: 75, foodYield: [4, 8], injuryRisk: 0, description: "Requires a quick eye. A decent meal with little risk." },
+    { name: 'Wild Goat', successChance: 65, foodYield: [9, 14], injuryRisk: 8, description: "Lives in rocky terrain. Agile and can be dangerous when cornered." },
+    { name: 'Hare', successChance: 80, foodYield: [3, 6], injuryRisk: 0, description: "Larger than a rabbit. Very quick but offers a decent meal." },
+    { name: 'Duck', successChance: 72, foodYield: [5, 8], injuryRisk: 0, description: "Found near water. Easy to hunt and good for roasting." },
 ];
 
 export const ITEM_PRICES: Record<string, { buy: number, sell: number }> = {
-    'Food': { buy: 2, sell: 1 },
-    'Oxen': { buy: 100, sell: 70 },
+    'Food': { buy: 6, sell: 3 }, // Increased from 2/1 - food is scarce and expensive
+    'Arrows': { buy: 3, sell: 1 }, // Ammunition for hunting
+    'Mules': { buy: 100, sell: 70 },
+    'Wood': { buy: 5, sell: 2 }, // Basic crafting material
+    'Metal Scraps': { buy: 15, sell: 8 }, // Same as Scrap Metal for consistency
+    'Cloth': { buy: 8, sell: 4 }, // Basic fabric for bandages
     'Bandages': { buy: 10, sell: 5 },
     'Medicinal Herbs': { buy: 25, sell: 12 },
     'Jerky': { buy: 5, sell: 2 },
@@ -439,6 +496,10 @@ export const ITEM_PRICES: Record<string, { buy: number, sell: number }> = {
 };
 
 export const ITEM_ICONS: Record<string, string> = {
+    'Arrows': '🏹',
+    'Wood': '🪵',
+    'Metal Scraps': '🔩',
+    'Cloth': '🧵',
     'Bandages': '🩹',
     'Medicinal Herbs': '🌿',
     'Healing Poultice': '💊',
@@ -483,59 +544,67 @@ export const ITEM_ICONS: Record<string, string> = {
 
 // Comprehensive item descriptions for ALL items
 export const ITEM_DESCRIPTIONS: Record<string, string> = {
+    // Crafting materials
+    'Wood': "Sturdy timber suitable for crafting. Can be carved into arrows or used for repairs. Wood was the primary building material in medieval Europe.",
+    'Metal Scraps': "Pieces of scrap iron and steel. Useful for crafting and repairs. Iron was precious - smiths salvaged every scrap for reuse.",
+    'Cloth': "Basic fabric material. Can be torn into bandages or used for other purposes. Most cloth was wool or linen; cotton was rare and expensive.",
+
+    // Ammunition
+    'Arrows': "Wooden arrows with iron tips. Essential for hunting game. English longbowmen could shoot 12 arrows per minute at 200+ yards.",
+
     // Consumables with effects
-    'Bandages': "Linen strips for binding wounds. Essential for treating injuries on the road.",
-    'Medicinal Herbs': "Collected herbs with healing properties. Can treat illness or be crafted into remedies.",
-    'Healing Poultice': "A powerful medicinal paste that treats both wounds and sickness.",
-    'Jerky': "Dried, salted meat. Portable and long-lasting sustenance for travelers.",
-    'Dried Fruit': "Sun-dried fruits preserve nutrition. Sweet and energy-restoring.",
-    'Cheese Wheel': "Aged cheese, rich in calories. A valuable food source for long journeys.",
-    'Salted Fish': "Fish preserved in salt. Common fare for travelers near waterways.",
-    'Wine': "Fortified wine from French vineyards. Warms the body and lifts spirits.",
-    'Holy Water': "Blessed water from a sacred source. Believed to have restorative powers.",
-    'Herbal Tea': "Dried herbs steeped in hot water. Soothes the mind and reduces fatigue.",
-    'Honey': "Natural sweetener with medicinal properties. Helps heal and energize.",
-    'Wagon Repair Kit': "Tools and spare parts for fixing broken wheels and axles.",
-    'Warm Clothing': "Woolen garments lined with fur. Protection against harsh weather.",
-    'Leather Boots': "Well-crafted boots that protect feet during long marches.",
-    'Field Provisions': "Complete military rations. Designed to sustain soldiers on campaign.",
-    'Iron Rations': "Hardtack, dried meat, and preserved foods. Military-grade sustenance.",
-    'Bread Loaf': "Fresh-baked bread, still warm. The most basic and satisfying of foods.",
+    'Bandages': "Linen strips for binding wounds. Bloodletting and bandaging were primary medical treatments. Clean bandages could prevent deadly infection.",
+    'Medicinal Herbs': "Collected herbs with healing properties. Medieval herbalists used hundreds of plants: willow bark (aspirin), mint (digestion), chamomile (sleep).",
+    'Healing Poultice': "A powerful medicinal paste that treats wounds and sickness. Poultices combined honey, herbs, and animal fat - surprisingly effective.",
+    'Jerky': "Dried, salted meat. Salt preservation was essential before refrigeration. A pound of salt cost a day's wages for a laborer.",
+    'Dried Fruit': "Sun-dried fruits preserve nutrition for months. Sailors relied on dried fruit to prevent scurvy on long voyages.",
+    'Cheese Wheel': "Aged cheese, rich in calories. Hard cheeses could last 6+ months without spoiling - crucial for long journeys.",
+    'Salted Fish': "Fish preserved in salt. Salted cod fed Catholic Europe during the many 'fast days' when meat was forbidden by the Church.",
+    'Wine': "Fortified wine. Safer than water, which was often contaminated. Even children drank diluted wine daily in southern Europe.",
+    'Holy Water': "Blessed water from a sacred source. The Church taught that holy water could ward off evil spirits and cure illness.",
+    'Herbal Tea': "Dried herbs steeped in hot water. Tea from Asia was extremely rare and expensive - this is local European herbs.",
+    'Honey': "Natural sweetener with medicinal properties. The only sweetener before sugar imports. Honey never spoils - archaeologists found edible honey in Egyptian tombs.",
+    'Wagon Repair Kit': "Tools and spare parts for fixing broken wheels. Wagon wheels broke constantly on rough roads - repair skills were essential.",
+    'Warm Clothing': "Woolen garments lined with fur. Wool stayed warm even when wet. Fur was a status symbol reserved for nobility by sumptuary laws.",
+    'Leather Boots': "Well-crafted boots. Good boots were expensive - worth several weeks' wages. Poor people wrapped feet in cloth.",
+    'Field Provisions': "Complete military rations. Armies moved on their stomachs - feeding soldiers was the main logistical challenge of warfare.",
+    'Iron Rations': "Hardtack biscuits and dried meat. Hardtack could last years but was so hard it could break teeth. Soldiers soaked it in water or wine.",
+    'Bread Loaf': "Fresh-baked bread. Bread was the staple food - the poor ate 2-3 pounds daily. A bad harvest meant famine and starvation.",
 
     // Trade goods
-    'Fine Silks': "Luxurious silk fabrics from the East. Valuable trade commodity worth good coin.",
-    'Spices': "Exotic spices from distant lands. Highly sought after by merchants and nobles.",
+    'Fine Silks': "Luxurious silk from China via the Silk Road. Worth its weight in silver. Venice controlled the European silk trade.",
+    'Spices': "Exotic spices: pepper, cinnamon, cloves, nutmeg. Spices were worth more than gold per pound - used to preserve meat and show wealth.",
 
     // Crafting materials & tools
-    'Scrap Metal': "Pieces of iron and steel. Used by blacksmiths for repairs and crafting.",
-    'Rope': "Strong hemp rope. Useful for many purposes from securing loads to climbing.",
-    'Lantern Oil': "Refined oil for lamps and lanterns. Provides light during dark nights.",
-    'Tinderbox': "Flint, steel, and char cloth for starting fires. Essential survival tool.",
-    'Whetstone': "Sharpening stone for maintaining blades and tools in good condition.",
-    'Candles': "Tallow or beeswax candles. Provide light for reading and nighttime tasks.",
-    'Iron Nails': "Forged iron nails. Useful for repairs and construction.",
-    'Cooking Pot': "Iron pot for preparing meals. Allows cooking of proper hot food.",
-    'Bedroll': "Canvas and wool bedding. Provides comfort and warmth while camping.",
-    'Hammer': "Blacksmith's hammer. Essential tool for metalwork and repairs.",
-    'Sharpening Stone': "Fine-grained whetstone. Keeps weapons and tools razor-sharp.",
+    'Scrap Metal': "Pieces of iron and steel. Iron ore mining and smelting were major industries. A single nail took a blacksmith several minutes to forge.",
+    'Rope': "Strong hemp rope. Ships required miles of rope for rigging. Rope-making was a specialized craft - hemp had to be twisted into strands.",
+    'Lantern Oil': "Refined whale oil or plant oil. Artificial lighting was expensive - most people lived by sunlight and went to bed at dusk.",
+    'Tinderbox': "Flint, steel, and char cloth. Starting a fire took skill and 5-10 minutes. People kept embers alive overnight to avoid relighting.",
+    'Whetstone': "Sharpening stone for blades. A dull blade was dangerous and inefficient. Soldiers sharpened weapons daily.",
+    'Candles': "Tallow (animal fat) or beeswax candles. Beeswax candles were 10x more expensive but burned cleaner. Churches used beeswax for the altar.",
+    'Iron Nails': "Forged iron nails. Before mass production, nails were valuable. People burned down abandoned buildings to salvage the nails.",
+    'Cooking Pot': "Iron pot for cooking. A family's cooking pot was a prized possession, often their most valuable item after their home.",
+    'Bedroll': "Canvas and wool bedding. Most peasants slept on straw pallets. A wool blanket was a luxury.",
+    'Hammer': "Blacksmith's hammer. Blacksmiths were essential to every village - they made and repaired all metal tools and horseshoes.",
+    'Sharpening Stone': "Fine-grained whetstone. Natural whetstones from certain quarries were traded across Europe for their superior quality.",
 
     // Religious & scholarly items
-    'Holy Symbol': "Sacred religious icon. Provides spiritual comfort and identifies you as faithful.",
-    'Prayer Book': "Book of prayers and psalms. Used for daily devotions and finding peace.",
-    'Ink & Quill': "Writing implements. Scholars use these to record observations and write letters.",
-    'Scholarly Tome': "Ancient manuscript containing knowledge. Requires careful study to understand.",
-    'Scholarly Letter': "Letter of introduction to scholars in other cities. Opens doors and builds connections.",
-    'Ancient Knowledge': "Rare insights from old texts. Valuable information that aids the journey.",
+    'Holy Symbol': "Sacred crucifix or saint's medallion. Wearing religious symbols was socially expected. Failure to display them could invite heresy accusations.",
+    'Prayer Book': "Book of prayers and psalms. Before the Reformation, prayer books were in Latin. Most people couldn't read them but treasured them.",
+    'Ink & Quill': "Goose feather quill and iron-gall ink. Literacy was rare and precious. Scribes were well-paid professionals.",
+    'Scholarly Tome': "Handwritten manuscript. Before printing, books were copied by hand and worth a year's wages. Universities had libraries of mere hundreds of books.",
+    'Scholarly Letter': "Letter of introduction. Letters opened doors and established credibility. Universities formed networks across Europe through correspondence.",
+    'Ancient Knowledge': "Rare classical texts from Greece or Rome. Renaissance scholars desperately sought lost classical manuscripts in monastery libraries.",
 
     // Navigation
-    'Compass': "Magnetic compass for navigation. Helps maintain proper direction even in poor weather.",
-    'Map': "Detailed map of routes to Rome. Shows cities, roads, and major landmarks.",
+    'Compass': "Magnetic compass. Invented in China, brought to Europe via Arab traders. Revolutionized navigation by enabling travel in fog and at night.",
+    'Map': "Detailed map. Most maps were wildly inaccurate. Precise cartography emerged during the Age of Exploration (1500s).",
 
     // Apothecary
-    'Mortar and Pestle': "Stone tools for grinding herbs. Essential for an apothecary's work.",
+    'Mortar and Pestle': "Stone tools for grinding herbs and medicines. Apothecaries ground ingredients fresh - no pre-made medicines existed.",
 
     // Luxury
-    'Luxury Bundle': "Collection of fine goods and delicacies. Status symbol and trade item.",
+    'Luxury Bundle': "Fine goods and delicacies: perfumes, sugar, imported fabrics. Luxury goods demonstrated wealth and status in a rigidly hierarchical society.",
 };
 
 export const ITEM_EFFECTS: Record<string, { description: string; removesCondition?: string, health_change?: number }> = {
@@ -613,9 +682,46 @@ export const ITEM_EFFECTS: Record<string, { description: string; removesConditio
         removesCondition: 'Starving',
         health_change: 5,
     },
+    'Bedroll': {
+        description: "Comfortable sleeping gear. Removes exhaustion and restores health.",
+        removesCondition: 'Exhausted',
+        health_change: 8,
+    },
+    'Cooking Pot': {
+        description: "Allows proper meal preparation. Significantly boosts health.",
+        health_change: 10,
+    },
 };
 
 export const CRAFTING_RECIPES = [
+    // Universal recipes (available to all)
+    {
+        profession: null, // null means available to everyone
+        item: 'Wood',
+        requires: 'Metal Scraps',
+        result: 'Arrows',
+        resultQuantity: 10,
+        description: 'You craft 10 arrows from wood and metal scraps.',
+        cost: { 'Wood': 1, 'Metal Scraps': 1 }
+    },
+    {
+        profession: null,
+        item: 'Wood',
+        result: 'Arrows',
+        resultQuantity: 5,
+        description: 'You whittle 5 crude arrows from wood (less effective without metal tips).',
+        cost: { 'Wood': 2 }
+    },
+    {
+        profession: null,
+        item: 'Cloth',
+        requires: 'Rope',
+        result: 'Bandages',
+        resultQuantity: 3,
+        description: 'You tear cloth and bind it with rope to make 3 bandages.',
+        cost: { 'Cloth': 1, 'Rope': 1 }
+    },
+    // Profession-specific recipes
     {
         profession: Profession.Scholar,
         item: 'Ink & Quill',
@@ -744,6 +850,7 @@ export const CRAFTING_RECIPES = [
 
 export const INITIAL_HEALTH = 100;
 export const INITIAL_STAMINA = 100;
+export const MAX_INVENTORY_SLOTS = 20; // Maximum number of different item types
 
 // Starting equipment by profession
 export const PROFESSION_EQUIPMENT: Record<Profession, { weapon?: string; armor?: string; tool?: string }> = {

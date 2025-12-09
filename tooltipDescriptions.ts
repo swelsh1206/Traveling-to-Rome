@@ -3,8 +3,8 @@
 export const STAT_TOOLTIPS = {
   health: "Your physical wellbeing. Falls to 0 and you die. Affected by food, rest, injuries, and disease. Restore with medical items or resting at camp.",
   food: "Provisions for your journey. Each person consumes food per week based on rations: Filling (2x), Normal (1x), Meager (0.5x). Running out causes starvation. Buy at markets or hunt for more.",
-  money: "Coins for trade. Use to purchase supplies, food, and equipment at markets. Earn through selling trade goods or completing tasks.",
-  oxen: "Draft animals pulling your wagon. More oxen means faster, safer travel. They can die from overwork, starvation, or accidents.",
+  ducats: "Gold ducats for trade. Use to purchase supplies, food, and equipment at markets. Earn through selling trade goods or completing tasks.",
+  oxen: "Mules pulling your wagon and carrying supplies. More mules means faster, safer travel. They can die from overwork, starvation, or accidents.",
   stamina: "Energy for non-travel actions. Consumed by hunting, scouting, crafting, and foraging. Restores based on ration level when you travel.",
   ammunition: "Arrows, bolts, and shot for hunting. Required to hunt animals for food. Can be purchased at markets or crafted with proper tools.",
   spareParts: "Materials for wagon repairs. Used to fix broken wagons on the road. Essential if you have a wagon. Blacksmiths can craft more.",
@@ -50,29 +50,29 @@ export const TRUST_TOOLTIPS = {
   general: "How much your family trusts your leadership and judgment. Built through successful decisions and deep conversations. High trust means family members will follow you even in dire circumstances.",
 };
 
-export const MOOD_TOOLTIPS = {
-  content: "Happy and satisfied with the journey. This family member has no major complaints.",
-  worried: "Concerned about dangers ahead or current conditions. May need reassurance or better circumstances.",
-  afraid: "Scared by recent events or deteriorating conditions. Relationship may be declining.",
-  angry: "Upset with recent decisions or treatment. At risk of leaving if things don't improve.",
-  hopeful: "Looking forward to reaching Rome despite current hardships. Optimistic about the future.",
-  devoted: "Completely loyal and trusting. Will follow you anywhere regardless of circumstances.",
+export const MOOD_TOOLTIPS: Record<string, string> = {
+  content: "😊 CONTENT: Happy and satisfied with the journey. No relationship decay. Willing to help and cooperate. Recovers health +1/week. Good conversations grant +4 relationship instead of +3.",
+  worried: "😟 WORRIED: Concerned about dangers ahead or current conditions. Relationship decays slowly (-1 every 3 weeks). Needs reassurance. Deep conversations are more effective (+6 instead of +5).",
+  afraid: "😨 AFRAID: Scared by recent events or deteriorating conditions. Relationship decaying (-2/week). Health recovery -20%. May refuse to help with dangerous tasks. Needs immediate care and safety.",
+  angry: "😠 ANGRY: Upset with recent decisions or treatment. Relationship decaying fast (-3/week). At high risk of leaving if <30 relationship. Refuses most interactions. Requires major gesture to improve.",
+  hopeful: "😌 HOPEFUL: Looking forward to reaching Rome despite hardships. Slowly gains relationship (+1 every 2 weeks). Optimistic about the future. Resistant to becoming worried. Good travel companion.",
+  devoted: "😇 DEVOTED: Completely loyal and trusting. Will never leave regardless of circumstances. Immune to fear and worry. Gains +2 relationship/week. Will sacrifice for the family. The ideal pilgrim.",
 };
 
-export const PERSONALITY_TOOLTIPS = {
-  Brave: "Faces danger courageously. Less affected by frightening events. Good in crisis situations.",
-  Cautious: "Careful and risk-averse. May question dangerous decisions but helps avoid disasters.",
-  Optimistic: "Sees the bright side. Maintains morale better in difficult times. Resists despair.",
-  Pessimistic: "Expects the worst. More easily worried or frightened but realistic about dangers.",
-  Loyal: "Deeply committed to family. Slower to lose relationship and trust. Very reliable.",
-  Independent: "Self-reliant and strong-willed. May disagree more but handles hardship better.",
-  Compassionate: "Cares deeply about others. Wants to help strangers even at personal cost.",
-  Pragmatic: "Practical and realistic. Focuses on survival over idealism. Good in tough choices.",
+export const PERSONALITY_TOOLTIPS: Record<string, string> = {
+  brave: "⚔️ BRAVE: Faces danger courageously. Loses less relationship during dangerous events (-30% fear penalty). Less likely to become 'afraid'. Prefers action over caution.",
+  cautious: "🛡️ CAUTIOUS: Careful and risk-averse. Gains relationship when you avoid danger (+2). Questions risky decisions but helps avoid disasters. Slower to trust bold choices.",
+  optimistic: "🌟 OPTIMISTIC: Sees the bright side. Maintains morale better in difficult times (+20% mood resilience). Resists becoming 'worried' or 'afraid'. Recovers relationship faster (+1 per week when >60).",
+  pessimistic: "☁️ PESSIMISTIC: Expects the worst. More easily worried or frightened (-20% mood threshold). Loses extra relationship in hardship (-1). But provides realistic warnings about dangers.",
+  faithful: "✝️ FAITHFUL: Deeply religious and trusting in God's plan. Gains relationship when you pray or visit churches (+3). Less affected by death and hardship (-20% grief). Devoted to the pilgrimage.",
+  pragmatic: "⚖️ PRAGMATIC: Practical and realistic. Prefers survival over idealism. Gains relationship when you make hard but necessary choices (+2). Unaffected by moral dilemmas. Good in tough situations.",
+  protective: "🛡️ PROTECTIVE: Fiercely guards family members. Gains relationship when family is safe (+2). Loses extra relationship when family is endangered (-3). Will sacrifice for others. Brave in defense.",
+  independent: "🦅 INDEPENDENT: Self-reliant and strong-willed. Handles hardship better (-30% health drain stress). May disagree with decisions more often. Gains relationship when given freedom. Slower to panic.",
 };
 
 export const PROFESSION_TOOLTIPS = {
   // Male professions
-  Merchant: "Expert in trade and negotiation. Gets 15% better prices when buying and selling at markets. Starts with trade goods and more money.",
+  Merchant: "Expert in trade and negotiation. Gets 15% better prices when buying and selling at markets. Starts with trade goods and more ducats.",
   Priest: "Respected religious figure. Can craft holy water. May receive help more easily from the faithful. Starts with religious items and healing supplies.",
   Soldier: "Hardy warrior with combat experience. 10% better hunting success chance. Better at handling threats and violence. Starts with military equipment.",
   Blacksmith: "Master of metalwork. Can repair wagons using scrap metal while camped. Can craft repair kits. Starts with tools and materials.",
@@ -85,8 +85,31 @@ export const PROFESSION_TOOLTIPS = {
   Midwife: "Skilled healer and expert in medicine. Can forage for medicinal herbs while camped. Trusted in communities for healing knowledge. Starts with excellent medical supplies.",
   Herbalist: "Expert in plants and natural remedies. Can forage for medicinal herbs while camped. Can craft powerful healing items. Starts with extensive herb collection.",
   "Noble Woman": "Woman of high birth with considerable wealth and influence. Commands respect despite societal barriers. Receives preferential treatment. Very rare.",
-  "Merchant (Female)": "Savvy trader who built her business against societal odds. Gets 15% better prices when buying and selling at markets. Starts with trade goods and money.",
+  "Merchant (Female)": "Savvy trader who built her business against societal odds. Gets 15% better prices when buying and selling at markets. Starts with trade goods and ducats.",
   "Scholar (Female)": "Rare woman of letters, exceptionally educated. Faces societal barriers but possesses valuable knowledge. Can decipher texts and write letters. Starts with books.",
+};
+
+export const EQUIPMENT_TOOLTIPS: Record<string, string> = {
+  // Weapons
+  "Sword": "⚔️ Standard military blade. +5% combat effectiveness in dangerous encounters. Provides self-defense capability.",
+  "Crossbow": "🏹 Ranged weapon. +10% hunting success. +5% combat effectiveness. Requires bolts as ammunition.",
+  "Dagger": "🗡️ Small blade for self-defense. +3% combat effectiveness. Easy to conceal and carry.",
+  "Musket": "🔫 Early firearm. +15% hunting success (loud but effective). +8% combat effectiveness. Requires gunpowder.",
+  "Pike": "⚔️ Long pole weapon. +7% combat effectiveness. Effective against mounted enemies.",
+
+  // Armor
+  "Leather Armor": "🛡️ Flexible protection. +10% damage reduction. Doesn't slow travel speed.",
+  "Chain Mail": "⛓️ Metal armor. +20% damage reduction. -5% travel speed due to weight.",
+  "Breastplate": "🛡️ Solid chest protection. +15% damage reduction. Balanced protection.",
+  "Padded Clothing": "👔 Reinforced cloth. +5% damage reduction. No speed penalty.",
+
+  // Tools
+  "Hammer": "🔨 Blacksmith's tool. Required for wagon repairs. Enables crafting metal items.",
+  "Mortar and Pestle": "⚗️ Grinding tool. Required for crafting healing potions. Enables herb processing.",
+  "Ink & Quill": "🖋️ Writing implements. Enables scholarly crafting. Can write letters and documents.",
+  "Merchant's Scale": "⚖️ Trading tool. +3% better prices at markets. Helps detect counterfeit goods.",
+  "Holy Symbol": "✝️ Religious icon. +5% relationship with religious NPCs. Provides spiritual comfort.",
+  "Surgical Tools": "🔪 Medical implements. +10% effectiveness when treating injuries. Required for complex healing.",
 };
 
 export const POLITICAL_ENTITY_TOOLTIPS: Record<string, string> = {

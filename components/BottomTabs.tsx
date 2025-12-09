@@ -14,7 +14,7 @@ const SideTabs: React.FC<SideTabsProps> = ({ activeTab, onTabClick, player, game
   const tabs = [
     { id: 'character' as TabType, icon: '👤', label: 'Character' },
     { id: 'party' as TabType, icon: '👥', label: 'Party' },
-    { id: 'inventory' as TabType, icon: '🎒', label: 'Inventory' },
+    { id: 'inventory' as TabType, icon: '🎒', label: 'Storage' },
   ];
 
   const getBorderColor = () => {

@@ -215,46 +215,94 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onRestartRun }) => {
               <div className="space-y-3">
                 <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
                   <h4 className="text-amber-300 font-bold mb-2">Coryat's Crudities</h4>
-                  <p className="text-gray-300 text-xs leading-relaxed">
+                  <p className="text-gray-300 text-sm leading-relaxed mb-2">
                     Thomas Coryat's 1611 travel account through France, Italy, and Germany. Provides vivid observations on customs, food, accommodations, and the practicalities of Early Modern travel.
                   </p>
+                  <a
+                    href="https://archive.org/stream/coryatscrudities01coryuoft/coryatscrudities01coryuoft_djvu.txt"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-cyan-300 text-sm underline inline-flex items-center gap-1"
+                  >
+                    📖 View on Internet Archive →
+                  </a>
                 </div>
 
                 <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
                   <h4 className="text-amber-300 font-bold mb-2">Michel de Montaigne's Journal</h4>
-                  <p className="text-gray-300 text-xs leading-relaxed">
+                  <p className="text-gray-300 text-sm leading-relaxed mb-2">
                     The French philosopher's travel journal (1580-1581) documenting his journey through France, Switzerland, Germany, and Italy. Offers intimate perspectives on Early Modern travel conditions and experiences.
                   </p>
+                  <a
+                    href="https://www.gutenberg.org/files/70838/70838-h/70838-h.htm"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-cyan-300 text-sm underline inline-flex items-center gap-1"
+                  >
+                    📖 View on Project Gutenberg →
+                  </a>
                 </div>
 
                 <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
                   <h4 className="text-amber-300 font-bold mb-2">Merry Wiesner-Hanks' <em>Early Modern Europe</em></h4>
-                  <p className="text-gray-300 text-xs leading-relaxed">
+                  <p className="text-gray-300 text-sm leading-relaxed mb-2">
                     Comprehensive academic survey of Early Modern European social, economic, and cultural history. Essential context for understanding the period's daily life, social structures, and historical developments.
                   </p>
+                  <a
+                    href="https://www.cambridge.org/highereducation/books/early-modern-europe-14501789/891ED2EF984BDFE89E5E39260C0F6C29#overview"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-cyan-300 text-sm underline inline-flex items-center gap-1"
+                  >
+                    📖 Cambridge University Press →
+                  </a>
                 </div>
 
                 <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
                   <h4 className="text-amber-300 font-bold mb-2">Benvenuto Cellini's Autobiography</h4>
-                  <p className="text-gray-300 text-xs leading-relaxed">
+                  <p className="text-gray-300 text-sm leading-relaxed mb-2">
                     The famous Renaissance artist and goldsmith's vivid autobiography includes detailed accounts of his travels through Italy and France, providing insight into the experiences of skilled craftsmen moving between European cities.
                   </p>
+                  <a
+                    href="https://www.gutenberg.org/ebooks/4028"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-cyan-300 text-sm underline inline-flex items-center gap-1"
+                  >
+                    📖 View on Project Gutenberg →
+                  </a>
                 </div>
 
                 <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
                   <h4 className="text-amber-300 font-bold mb-2">Gabor Gelleri's <em>From Touring to Training</em></h4>
-                  <p className="text-gray-300 text-xs leading-relaxed">
+                  <p className="text-gray-300 text-sm leading-relaxed mb-2">
                     Academic study examining the evolution and purposes of early modern travel, from educational tours to professional training journeys, illuminating the diverse motivations behind European travel during this period.
                   </p>
+                  <a
+                    href="https://brill.com/view/title/62856"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-cyan-300 text-sm underline inline-flex items-center gap-1"
+                  >
+                    📖 View on Brill →
+                  </a>
                 </div>
 
                 <div className="bg-stone-700/20 p-4 rounded-lg border border-amber-600/10">
                   <h4 className="text-amber-300 font-bold mb-2">Daniel Margocsy's <em>The Fuzzy Metrics of Money</em></h4>
-                  <p className="text-gray-300 text-xs leading-relaxed">
+                  <p className="text-gray-300 text-sm leading-relaxed mb-2">
                     <span className="font-semibold">Full title:</span> "The finances of travel and the reception of curiosities in early modern Europe."
                     <br /><br />
                     Scholarly examination of the economic dimensions of early modern travel, exploring how travelers financed their journeys and the complex monetary systems they navigated across different European territories.
                   </p>
+                  <a
+                    href="https://philpapers.org/rec/MARTFM"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-cyan-400 hover:text-cyan-300 text-sm underline inline-flex items-center gap-1"
+                  >
+                    📖 View on PhilPapers →
+                  </a>
                 </div>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Profession, TransportationType, Gender, SocialClass } from '../types';
-import { PROFESSION_STATS, PROFESSION_EQUIPMENT, PROFESSION_SKILLS, INITIAL_HEALTH, INITIAL_STAMINA, FRENCH_MALE_NAMES, FRENCH_FEMALE_NAMES, FRENCH_LAST_NAMES, NOBLE_TITLES, STARTING_CITIES, MALE_PROFESSIONS, FEMALE_PROFESSIONS, GENDER_SYMBOLS, StartingCity, getLiegeForYear } from '../constants';
+import { Profession, TransportationType, Gender, SocialClass, JourneyReason } from '../types';
+import { PROFESSION_STATS, PROFESSION_EQUIPMENT, PROFESSION_SKILLS, INITIAL_HEALTH, INITIAL_STAMINA, FRENCH_MALE_NAMES, FRENCH_FEMALE_NAMES, FRENCH_LAST_NAMES, NOBLE_TITLES, STARTING_CITIES, MALE_PROFESSIONS, FEMALE_PROFESSIONS, GENDER_SYMBOLS, StartingCity, getLiegeForYear, getStartingCitiesForDifficulty, HARD_MODE_NOBLE_CHANCE, HARD_MODE_SCHOLAR_F_CHANCE } from '../constants';
 import ActionButton from './ActionButton';
 import LoadingSpinner from './LoadingSpinner';
 import Tooltip from './Tooltip';
@@ -11,6 +11,7 @@ interface CharacterCreationScreenProps {
   isLoading: boolean;
   mode: 'random' | 'custom';
   year: number;
+  difficulty: 'normal' | 'hard';
 }
 
 interface GeneratedCharacter {
@@ -19,32 +20,88 @@ interface GeneratedCharacter {
   startingCity: StartingCity;
   transportation: TransportationType;
   gender: Gender;
+  journeyReason: JourneyReason;
 }
 
 const getRandomItem = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
-const generateProfession = (gender: Gender): Profession => {
+const generateJourneyReason = (profession: Profession): JourneyReason => {
+  let journeyReasons: JourneyReason[];
+
+  switch(profession) {
+    case Profession.Priest:
+    case Profession.Nun:
+      journeyReasons = ['Seeking Spiritual Renewal', 'Penance for Past Deeds'];
+      break;
+    case Profession.Merchant:
+    case Profession.Merchant_F:
+      journeyReasons = ['Trade Opportunity', 'Escaping Persecution', 'Political Refuge'];
+      break;
+    case Profession.Scholar:
+    case Profession.Scholar_F:
+      journeyReasons = ['Scholarly Research', 'Escaping Persecution', 'Seeking a Cure'];
+      break;
+    case Profession.Soldier:
+      journeyReasons = ['Penance for Past Deeds', 'Escaping Persecution', 'Political Refuge'];
+      break;
+    case Profession.Apothecary:
+    case Profession.Midwife:
+    case Profession.Herbalist:
+      journeyReasons = ['Scholarly Research', 'Seeking a Cure', 'Escaping Persecution'];
+      break;
+    case Profession.Royal:
+    case Profession.NobleWoman:
+      journeyReasons = ['The Grand Tour', 'The Grand Tour', 'The Grand Tour', 'Political Refuge']; // Grand Tour is the typical reason for nobility
+      break;
+    case Profession.Blacksmith:
+      journeyReasons = ['Trade Opportunity', 'Family Vow', 'Seeking a Cure'];
+      break;
+    default:
+      journeyReasons = ['Seeking a Cure', 'Political Refuge', 'Family Vow', 'Escaping Persecution'];
+  }
+
+  return getRandomItem(journeyReasons);
+};
+
+const generateProfession = (gender: Gender, difficulty: 'normal' | 'hard'): Profession => {
   const roll = Math.random() * 100;
 
-  // Royal/NobleWoman is extremely rare - 0.5% chance
-  if (roll < 0.5) return gender === 'Male' ? Profession.Royal : Profession.NobleWoman;
+  // Royal/NobleWoman is extremely rare - chance varies by difficulty
+  const nobleChance = difficulty === 'hard' ? HARD_MODE_NOBLE_CHANCE * 100 : 0.5;
+  if (roll < nobleChance) return gender === 'Male' ? Profession.Royal : Profession.NobleWoman;
 
-  // Weight the professions based on gender
-  const professions = gender === 'Male'
-    ? MALE_PROFESSIONS.filter(p => p !== Profession.Royal)
-    : FEMALE_PROFESSIONS.filter(p => p !== Profession.NobleWoman);
+  // For female characters, use weighted probabilities to make scholars extremely rare (historically accurate)
+  if (gender === 'Female') {
+    const femaleRoll = Math.random() * 100;
 
+    // Scholar_F is extremely rare - chance varies by difficulty
+    const scholarChance = difficulty === 'hard' ? HARD_MODE_SCHOLAR_F_CHANCE * 100 : 2;
+    if (femaleRoll < scholarChance) return Profession.Scholar_F;
+
+    // Other professions are weighted equally among the remaining percentage
+    const commonFemaleProfessions = [
+      Profession.Nun,
+      Profession.Midwife,
+      Profession.Herbalist,
+      Profession.Merchant_F,
+    ];
+
+    return getRandomItem(commonFemaleProfessions);
+  }
+
+  // Male professions remain equally weighted
+  const professions = MALE_PROFESSIONS.filter(p => p !== Profession.Royal);
   return getRandomItem(professions);
 };
 
 const generateTransportation = (profession: Profession): TransportationType => {
   if (profession === Profession.Royal || profession === Profession.NobleWoman) return 'Royal Procession';
 
-  const money = PROFESSION_STATS[profession].money;
+  const ducats = PROFESSION_STATS[profession].ducats;
 
-  if (money >= 500) return 'Carriage';
-  if (money >= 350) return 'Wagon';
-  if (money >= 275) return 'Horse';
+  if (ducats >= 500) return 'Carriage';
+  if (ducats >= 350) return 'Wagon';
+  if (ducats >= 275) return 'Horse';
   return 'On Foot';
 };
 
@@ -88,17 +145,22 @@ const generateName = (profession: Profession, gender: Gender): string => {
   return `${firstName} ${lastName}`;
 };
 
-const generateCharacter = (gender?: Gender): GeneratedCharacter => {
+const generateCharacter = (difficulty: 'normal' | 'hard', gender?: Gender): GeneratedCharacter => {
   const selectedGender = gender || (Math.random() > 0.5 ? 'Male' : 'Female');
-  const profession = generateProfession(selectedGender);
+  const profession = generateProfession(selectedGender, difficulty);
   const name = generateName(profession, selectedGender);
-  const startingCity = getRandomItem(STARTING_CITIES);
-  const transportation = generateTransportation(profession);
 
-  return { name, profession, startingCity, transportation, gender: selectedGender };
+  // Filter cities by difficulty (hard mode = longer distances only)
+  const availableCities = getStartingCitiesForDifficulty(difficulty);
+  const startingCity = getRandomItem(availableCities);
+
+  const transportation = generateTransportation(profession);
+  const journeyReason = generateJourneyReason(profession);
+
+  return { name, profession, startingCity, transportation, gender: selectedGender, journeyReason };
 };
 
-const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCreate, isLoading, mode, year }) => {
+const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCreate, isLoading, mode, year, difficulty }) => {
   const [character, setCharacter] = useState<GeneratedCharacter | null>(null);
   const [rerollCount, setRerollCount] = useState(0);
 
@@ -106,16 +168,24 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
   const [customName, setCustomName] = useState('');
   const [customGender, setCustomGender] = useState<Gender>('Male');
   const [customProfession, setCustomProfession] = useState<Profession | null>(null);
+  const [customJourneyReason, setCustomJourneyReason] = useState<JourneyReason | null>(null);
+
+  // Update journey reason when profession changes
+  useEffect(() => {
+    if (customProfession) {
+      setCustomJourneyReason(generateJourneyReason(customProfession));
+    }
+  }, [customProfession]);
 
   // Generate initial character on mount (random mode only)
   useEffect(() => {
     if (mode === 'random') {
-      setCharacter(generateCharacter());
+      setCharacter(generateCharacter(difficulty));
     }
-  }, [mode]);
+  }, [mode, difficulty]);
 
   const handleReroll = () => {
-    setCharacter(generateCharacter()); // Completely random, no gender preference
+    setCharacter(generateCharacter(difficulty)); // Completely random, no gender preference
     setRerollCount(prev => prev + 1);
   };
 
@@ -123,15 +193,18 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
     if (mode === 'random' && character && !isLoading) {
       onCreate(character.name, character.profession, character.gender, character.startingCity, year);
     } else if (mode === 'custom' && customName && customProfession && !isLoading) {
-      // For custom mode, also randomly select a starting city
-      const randomCity = getRandomItem(STARTING_CITIES);
+      // For custom mode, also randomly select a starting city (filtered by difficulty)
+      const availableCities = getStartingCitiesForDifficulty(difficulty);
+      const randomCity = getRandomItem(availableCities);
       onCreate(customName, customProfession, customGender, randomCity, year);
     }
   };
 
   const handleCustomSubmit = () => {
     if (customName && customProfession) {
-      const randomCity = getRandomItem(STARTING_CITIES);
+      // Filter cities by difficulty (hard mode = longer distances only)
+      const availableCities = getStartingCitiesForDifficulty(difficulty);
+      const randomCity = getRandomItem(availableCities);
       onCreate(customName, customProfession, customGender, randomCity, year);
     }
   };
@@ -141,7 +214,7 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
     const availableProfessions = customGender === 'Male' ? MALE_PROFESSIONS : FEMALE_PROFESSIONS;
 
     return (
-      <div className="bg-stone-800/80 p-8 border-4 border-amber-500 shadow-lg backdrop-blur-sm rounded-xl max-w-3xl mx-auto">
+      <div className="bg-stone-800/80 p-8 border-4 border-amber-500 shadow-lg backdrop-blur-sm rounded-xl max-w-5xl mx-auto">
         <h1 className="text-4xl text-amber-300 mb-6 tracking-wider text-center">Create Your Character</h1>
 
         <div className="space-y-6 mb-8">
@@ -215,9 +288,9 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
                     </div>
                     <div className="text-xs text-gray-400 line-clamp-2">{stats.description}</div>
                     <div className="mt-2 flex gap-2 text-xs">
-                      <span className="text-yellow-400">💰 {stats.money}</span>
+                      <span className="text-yellow-400">💰 {stats.ducats}</span>
                       <span className="text-green-400">🍖 {stats.food}</span>
-                      {stats.oxen > 0 && <span className="text-blue-400">🐂 {stats.oxen}</span>}
+                      {stats.oxen > 0 && <span className="text-blue-400">🐴 {stats.oxen}</span>}
                     </div>
                   </button>
                 );
@@ -242,6 +315,29 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
                   <div className="text-amber-400 text-xs uppercase tracking-wide mb-1">Social Class</div>
                   <div className="text-amber-100 text-lg font-bold">{profSocialClass}</div>
                 </div>
+
+                {/* Journey Exigence */}
+                {customJourneyReason && (
+                  <div className="bg-stone-900/50 p-3 rounded-lg border-2 border-amber-600/30">
+                    <div className="text-amber-400 text-xs uppercase tracking-wide mb-1">Journey Exigence</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🎯</span>
+                      <div className="text-amber-100 text-lg font-bold">{customJourneyReason}</div>
+                    </div>
+                    <div className="text-gray-400 text-xs mt-1 italic">
+                      {customJourneyReason === 'Seeking Spiritual Renewal' && 'Seeking God\'s grace in the Eternal City'}
+                      {customJourneyReason === 'Penance for Past Deeds' && 'Atoning for sins through pilgrimage'}
+                      {customJourneyReason === 'Trade Opportunity' && 'Seeking fortune in Roman markets'}
+                      {customJourneyReason === 'Scholarly Research' && 'Studying ancient texts and knowledge'}
+                      {customJourneyReason === 'Escaping Persecution' && 'Fleeing danger and seeking refuge'}
+                      {customJourneyReason === 'Political Refuge' && 'Escaping political turmoil and enemies'}
+                      {customJourneyReason === 'Seeking a Cure' && 'Hoping for miraculous healing'}
+                      {customJourneyReason === 'Family Vow' && 'Fulfilling a sacred family promise'}
+                      {customJourneyReason === 'For Adventure and Pleasure' && 'Traveling for the thrill of the journey'}
+                      {customJourneyReason === 'The Grand Tour' && 'A noble tradition - traveling Europe for cultural education and refinement'}
+                    </div>
+                  </div>
+                )}
 
                 {/* Core Stats */}
                 <div className="bg-stone-900/50 p-3 rounded-lg border-2 border-amber-600/30">
@@ -269,8 +365,8 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
                   <div className="text-amber-400 text-xs uppercase tracking-wide mb-2">Starting Resources</div>
                   <div className={`grid ${profStats.oxen > 0 ? (profSpareParts > 0 ? 'grid-cols-5' : 'grid-cols-4') : (profSpareParts > 0 ? 'grid-cols-4' : 'grid-cols-3')} gap-2 text-xs text-center`}>
                     <div>
-                      <div className="text-yellow-400 text-lg font-bold">{profStats.money}</div>
-                      <div className="text-gray-400">Money</div>
+                      <div className="text-yellow-400 text-lg font-bold">{profStats.ducats}</div>
+                      <div className="text-gray-400">Ducats</div>
                     </div>
                     <div>
                       <div className="text-green-400 text-lg font-bold">{profStats.food}</div>
@@ -400,7 +496,7 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
   const historicalLiege = getLiegeForYear(character.startingCity, year);
 
   return (
-    <div className="bg-stone-800/80 p-6 border-4 border-amber-500 shadow-lg backdrop-blur-sm rounded-xl max-w-2xl mx-auto max-h-[85vh] overflow-y-auto">
+    <div className="bg-stone-800/80 p-6 border-4 border-amber-500 shadow-lg backdrop-blur-sm rounded-xl max-w-4xl mx-auto max-h-[85vh] overflow-y-auto">
       <h1 className="text-3xl text-amber-300 mb-4 tracking-wider text-center">The Fates Have Spoken</h1>
 
       {isRoyal && (
@@ -421,6 +517,28 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
               {character.profession} • {socialClass}
             </div>
           </div>
+
+          {/* Journey Exigence - Prominently displayed */}
+          <div className="mt-3 pt-3 border-t border-amber-600/20">
+            <div className="text-amber-400 text-xs uppercase tracking-wide mb-1 text-center">Journey Exigence</div>
+            <div className="text-center">
+              <span className="text-2xl mr-2">🎯</span>
+              <span className="text-amber-100 font-bold text-xl">{character.journeyReason}</span>
+            </div>
+            <div className="text-gray-400 text-xs text-center mt-1 italic">
+              {character.journeyReason === 'Seeking Spiritual Renewal' && 'Seeking God\'s grace in the Eternal City'}
+              {character.journeyReason === 'Penance for Past Deeds' && 'Atoning for sins through pilgrimage'}
+              {character.journeyReason === 'Trade Opportunity' && 'Seeking fortune in Roman markets'}
+              {character.journeyReason === 'Scholarly Research' && 'Studying ancient texts and knowledge'}
+              {character.journeyReason === 'Escaping Persecution' && 'Fleeing danger and seeking refuge'}
+              {character.journeyReason === 'Political Refuge' && 'Escaping political turmoil and enemies'}
+              {character.journeyReason === 'Seeking a Cure' && 'Hoping for miraculous healing'}
+              {character.journeyReason === 'Family Vow' && 'Fulfilling a sacred family promise'}
+              {character.journeyReason === 'For Adventure and Pleasure' && 'Traveling for the thrill of the journey'}
+              {character.journeyReason === 'The Grand Tour' && 'A noble tradition - traveling Europe for cultural education and refinement'}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 pt-3 border-t border-amber-600/20">
             <div className="text-center">
               <div className="text-amber-400 text-xs uppercase tracking-wide mb-1">Departing From</div>
@@ -461,7 +579,13 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
             </div>
           </div>
           <div className="pt-2 border-t border-amber-600/20">
-            <p className="text-gray-300 text-xs leading-relaxed">{stats.description}</p>
+            <p className="text-gray-300 text-xs leading-relaxed">
+              {character.transportation === 'Royal Procession' && 'Traveling with a full entourage of servants, guards, and attendants. The finest accommodations await at every stop.'}
+              {character.transportation === 'Carriage' && 'A covered carriage provides shelter from weather and allows rest while traveling. Comfortable but slower than horseback.'}
+              {character.transportation === 'Wagon' && 'A sturdy wagon pulled by oxen carries supplies and offers basic shelter. Reliable for long journeys with heavy loads.'}
+              {character.transportation === 'Horse' && 'Mounted travel allows swift passage across terrain. Requires skill in horsemanship and frequent rest stops for the animal.'}
+              {character.transportation === 'On Foot' && 'Walking the ancient pilgrim routes as countless travelers have before. Slow but requires no animal care or upkeep.'}
+            </p>
           </div>
         </div>
 
@@ -489,11 +613,11 @@ const CharacterCreationScreen: React.FC<CharacterCreationScreenProps> = ({ onCre
             </Tooltip>
           </div>
           <div className={`grid ${stats.oxen > 0 ? (spareParts > 0 ? 'grid-cols-5' : 'grid-cols-4') : (spareParts > 0 ? 'grid-cols-4' : 'grid-cols-3')} gap-2`}>
-            <Tooltip content={STAT_TOOLTIPS.money} position="top">
+            <Tooltip content={STAT_TOOLTIPS.ducats} position="top">
               <div className="text-center cursor-help bg-stone-800/50 p-2 rounded-lg">
                 <div className="text-yellow-400 text-xl mb-1">💰</div>
-                <div className="text-white font-bold text-lg">{stats.money}</div>
-                <div className="text-gray-400 text-xs">Money</div>
+                <div className="text-white font-bold text-lg">{stats.ducats}</div>
+                <div className="text-gray-400 text-xs">Ducats</div>
               </div>
             </Tooltip>
             <Tooltip content={STAT_TOOLTIPS.food} position="top">

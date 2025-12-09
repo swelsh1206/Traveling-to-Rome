@@ -4,7 +4,7 @@ import StartScreen from './components/StartScreen';
 import CharacterCreationScreen from './components/CharacterCreationScreen';
 import GameUI from './components/GameUI';
 import EndScreen from './components/EndScreen';
-import { Player, GameState, Profession, PartyMember, Gender } from './types';
+import { Player, GameState, Profession, PartyMember, Gender, JourneyReason } from './types';
 import { PROFESSION_STATS, PROFESSION_EQUIPMENT, PROFESSION_SKILLS, TOTAL_DISTANCE_TO_ROME, INITIAL_HEALTH, INITIAL_STAMINA, FRENCH_MALE_NAMES, FRENCH_FEMALE_NAMES, FRENCH_LAST_NAMES, StartingCity, generateRouteCheckpoints } from './constants';
 import { generateCharacterImage } from './services/geminiService';
 import { generateRandomStartDate, getSeasonFromMonth } from './utils/dateUtils';
@@ -22,14 +22,17 @@ function App() {
   const [isCreating, setIsCreating] = useState(false);
   const [devMode, setDevMode] = useState(false);
   const [gameYear, setGameYear] = useState<number>(1450);
+  const [difficulty, setDifficulty] = useState<'normal' | 'hard'>('normal');
 
-  const handleRandomStart = (year: number) => {
+  const handleRandomStart = (year: number, selectedDifficulty: 'normal' | 'hard') => {
     setGameYear(year);
+    setDifficulty(selectedDifficulty);
     setScreen('create-random');
   };
 
-  const handleCustomStart = (year: number) => {
+  const handleCustomStart = (year: number, selectedDifficulty: 'normal' | 'hard') => {
     setGameYear(year);
+    setDifficulty(selectedDifficulty);
     setScreen('create-custom');
   };
 
@@ -49,11 +52,41 @@ function App() {
         ? 'Craftsman'
         : 'Craftsman';
 
-      // Select journey reason based on profession
-      const isReligious = profession === 'Priest' || profession === 'Nun';
-      const journeyReasons = isReligious
-        ? ['Seeking Spiritual Renewal', 'Penance for Past Deeds', 'Seeking a Cure', 'Family Vow']
-        : ['Seeking a Cure', 'Political Refuge', 'Trade Opportunity', 'Scholarly Research', 'Family Vow', 'Escaping Persecution'];
+      // Select journey reason based on profession - more specific and varied
+      let journeyReasons: JourneyReason[];
+
+      switch(profession) {
+        case 'Priest':
+        case 'Nun':
+          journeyReasons = ['Seeking Spiritual Renewal', 'Penance for Past Deeds'];
+          break;
+        case 'Merchant':
+        case 'Merchant_F':
+          journeyReasons = ['Trade Opportunity', 'Escaping Persecution', 'Political Refuge'];
+          break;
+        case 'Scholar':
+        case 'Scholar_F':
+          journeyReasons = ['Scholarly Research', 'Escaping Persecution', 'Seeking a Cure'];
+          break;
+        case 'Soldier':
+          journeyReasons = ['Penance for Past Deeds', 'Escaping Persecution', 'Political Refuge'];
+          break;
+        case 'Apothecary':
+        case 'Midwife':
+        case 'Herbalist':
+          journeyReasons = ['Scholarly Research', 'Seeking a Cure', 'Escaping Persecution'];
+          break;
+        case 'Royal':
+        case 'Noble Woman':
+          journeyReasons = ['The Grand Tour', 'The Grand Tour', 'The Grand Tour', 'Political Refuge']; // Grand Tour is the typical reason for nobility
+          break;
+        case 'Blacksmith':
+          journeyReasons = ['Trade Opportunity', 'Family Vow', 'Seeking a Cure'];
+          break;
+        default:
+          journeyReasons = ['Seeking a Cure', 'Political Refuge', 'Family Vow', 'Escaping Persecution'];
+      }
+
       const journeyReason = getRandomItem(journeyReasons as any);
 
       const reputation = 50; // Start neutral
@@ -96,9 +129,11 @@ function App() {
 
       // Create appropriate spouse based on player's gender
       const spouseNames = gender === 'Male' ? FRENCH_FEMALE_NAMES : FRENCH_MALE_NAMES;
+      const spouseAge = age + Math.floor(Math.random() * 11) - 5; // Spouse is around same age (+/- 5 years)
       const spouse: PartyMember = {
         name: getRandomItem(spouseNames) + ' ' + lastName,
         role: 'spouse',
+        age: Math.max(18, Math.min(60, spouseAge)), // Keep within reasonable bounds
         health: INITIAL_HEALTH,
         conditions: [],
         injuries: [],
@@ -111,9 +146,11 @@ function App() {
       // Random child gender
       const childGender = Math.random() > 0.5 ? 'Male' : 'Female';
       const childNames = childGender === 'Male' ? FRENCH_MALE_NAMES : FRENCH_FEMALE_NAMES;
+      const childAge = 5 + Math.floor(Math.random() * 10); // Children are 5-14 years old
       const child: PartyMember = {
         name: getRandomItem(childNames) + ' ' + lastName,
         role: 'child',
+        age: childAge,
         health: INITIAL_HEALTH,
         conditions: [],
         injuries: [],
@@ -125,6 +162,46 @@ function App() {
 
       const party = [spouse, child];
 
+      // Add role-specific party members for nobles/royalty
+      if (profession === 'Royal' || profession === 'Noble Woman') {
+        // Add Royal Guard(s)
+        const guardAge = 25 + Math.floor(Math.random() * 20); // 25-45 years old
+        const guardGender = Math.random() > 0.5 ? 'Male' : 'Female';
+        const guardNames = guardGender === 'Male' ? FRENCH_MALE_NAMES : FRENCH_FEMALE_NAMES;
+        const guard: PartyMember = {
+          name: getRandomItem(guardNames) + ' ' + getRandomItem(FRENCH_LAST_NAMES),
+          role: 'royal guard',
+          age: guardAge,
+          health: INITIAL_HEALTH + 10, // Guards start with slightly more health
+          conditions: [],
+          injuries: [],
+          relationship: 65 + Math.floor(Math.random() * 15), // 65-80 (professional relationship)
+          mood: 'content',
+          trust: 70 + Math.floor(Math.random() * 20), // 70-90
+          personalityTrait: Math.random() > 0.6 ? 'brave' : (Math.random() > 0.5 ? 'protective' : 'pragmatic')
+        };
+        party.push(guard);
+
+        // Add Valet/Servant
+        const valetAge = 20 + Math.floor(Math.random() * 25); // 20-45 years old
+        const valetGender = Math.random() > 0.5 ? 'Male' : 'Female';
+        const valetNames = valetGender === 'Male' ? FRENCH_MALE_NAMES : FRENCH_FEMALE_NAMES;
+        const valetRole = valetGender === 'Male' ? 'valet-de-chambre' : 'lady\'s maid';
+        const valet: PartyMember = {
+          name: getRandomItem(valetNames) + ' ' + getRandomItem(FRENCH_LAST_NAMES),
+          role: valetRole,
+          age: valetAge,
+          health: INITIAL_HEALTH,
+          conditions: [],
+          injuries: [],
+          relationship: 60 + Math.floor(Math.random() * 20), // 60-80 (servant relationship)
+          mood: 'hopeful',
+          trust: 65 + Math.floor(Math.random() * 20), // 65-85
+          personalityTrait: Math.random() > 0.5 ? 'cautious' : (Math.random() > 0.5 ? 'faithful' : 'optimistic')
+        };
+        party.push(valet);
+      }
+
       // Use the year from character creation, generate random start month in spring
       const month = Math.floor(Math.random() * 3) + 3; // March (3), April (4), or May (5)
       const daysInMonth = month === 3 || month === 5 ? 31 : 30;
@@ -134,18 +211,15 @@ function App() {
       // Determine if player has a wagon based on oxen
       const hasWagon = stats.oxen >= 2;
 
-      // Determine transportation based on profession/money
+      // Determine transportation based on profession/ducats
       const transportation =
         profession === 'Royal' || profession === 'Noble Woman' ? 'Royal Procession' :
-        stats.money >= 500 ? 'Carriage' :
-        stats.money >= 350 ? 'Wagon' :
-        stats.money >= 275 ? 'Horse' : 'On Foot';
+        stats.ducats >= 500 ? 'Carriage' :
+        stats.ducats >= 350 ? 'Wagon' :
+        stats.ducats >= 275 ? 'Horse' : 'On Foot';
 
       // Set initial ammunition based on profession
       const initialAmmunition = profession === Profession.Soldier ? 20 : profession === Profession.Royal ? 15 : 10;
-
-      // Set initial spare parts based on profession
-      const initialSpareParts = profession === Profession.Blacksmith ? 5 : profession === Profession.Royal ? 3 : hasWagon ? 2 : 0;
 
       const newGameState: GameState = {
         day: 1,
@@ -156,11 +230,10 @@ function App() {
         distanceToRome: startingCity.distance, // Use actual distance from starting city
         health: INITIAL_HEALTH,
         food: stats.food,
-        money: stats.money,
+        ducats: stats.ducats,
         oxen: stats.oxen,
         stamina: INITIAL_STAMINA,
         ammunition: initialAmmunition,
-        spareParts: initialSpareParts,
         hasWagon: hasWagon,
         transportation: transportation,
         inventory: { ...stats.inventory },
@@ -176,6 +249,7 @@ function App() {
         skills: { ...PROFESSION_SKILLS[profession] },
         rationLevel: 'normal', // Default to normal rations
         weeklyFocus: 'normal', // Default to normal travel focus
+        buffs: [], // No initial buffs
       };
 
       setPlayer(newPlayer);
@@ -216,9 +290,9 @@ function App() {
       case 'start':
         return <StartScreen onRandomStart={handleRandomStart} onCustomStart={handleCustomStart} onDevModeChange={setDevMode} />;
       case 'create-random':
-        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="random" year={gameYear} />;
+        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="random" year={gameYear} difficulty={difficulty} />;
       case 'create-custom':
-        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="custom" year={gameYear} />;
+        return <CharacterCreationScreen onCreate={handleCharacterCreate} isLoading={isCreating} mode="custom" year={gameYear} difficulty={difficulty} />;
       case 'game':
         if (player && gameState) {
           return <GameUI player={player} initialGameState={gameState} characterImageUrl={characterImageUrl} onGameEnd={handleGameEnd} onRestartRun={handleRestart} devMode={devMode} />;

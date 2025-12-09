@@ -2,15 +2,16 @@ import React, { useState } from 'react';
 import { Player, GameState, PartyMember } from '../types';
 import { ITEM_ICONS, ITEM_DESCRIPTIONS, ITEM_EFFECTS, PROFESSION_STATS } from '../constants';
 import Tooltip from './Tooltip';
-import { CONDITION_TOOLTIPS, PROFESSION_TOOLTIPS, MOOD_TOOLTIPS, PERSONALITY_TOOLTIPS } from '../tooltipDescriptions';
+import { CONDITION_TOOLTIPS, PROFESSION_TOOLTIPS, MOOD_TOOLTIPS, PERSONALITY_TOOLTIPS, EQUIPMENT_TOOLTIPS } from '../tooltipDescriptions';
 
 interface CharacterSidebarProps {
   player: Player;
   gameState: GameState;
   characterImageUrl: string;
-  onUseItem?: (item: string) => void;
+  onUseItem?: (item: string, target?: PartyMember) => void;
   onOpenInventoryForTarget?: (member: PartyMember) => void;
   onOpenIndex?: () => void;
+  onOpenPartyMemberDetail?: (member: PartyMember) => void;
 }
 
 const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
@@ -19,10 +20,13 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
   characterImageUrl,
   onUseItem,
   onOpenInventoryForTarget,
-  onOpenIndex
+  onOpenIndex,
+  onOpenPartyMemberDetail
 }) => {
   const [partyExpanded, setPartyExpanded] = useState(true);
   const [inventoryExpanded, setInventoryExpanded] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [showTargetSelector, setShowTargetSelector] = useState(false);
 
   const getBorderColor = () => {
     const phase = gameState.phase;
@@ -45,11 +49,11 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
               className="w-20 h-20 mx-auto rounded-lg border-2 border-amber-500 shadow-lg mb-2"
             />
           )}
-          <h2 className="text-lg text-amber-300 tracking-wider font-bold leading-tight">{player.name}</h2>
+          <h2 className="text-xl text-amber-300 tracking-wider font-bold leading-tight">{player.name}</h2>
           <Tooltip content={PROFESSION_TOOLTIPS[player.profession]} position="top">
-            <p className="text-xs text-amber-100 cursor-help">{player.profession}</p>
+            <p className="text-sm text-amber-100 cursor-help">{player.profession}</p>
           </Tooltip>
-          <p className="text-xs text-gray-400 mt-0.5">{player.startingCity}</p>
+          <p className="text-sm text-gray-400 mt-0.5">{player.startingCity}</p>
         </div>
 
         {/* Conditions & Injuries */}
@@ -77,8 +81,8 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
 
         {/* Skills - More Compact */}
         <div className="bg-stone-900/50 p-2 rounded-lg">
-          <h4 className="text-xs text-gray-400 mb-1.5 font-semibold uppercase tracking-wide">Skills</h4>
-          <div className="grid grid-cols-3 gap-1 text-xs">
+          <h4 className="text-sm text-gray-400 mb-1.5 font-semibold uppercase tracking-wide">Skills</h4>
+          <div className="grid grid-cols-3 gap-1 text-sm">
             <Tooltip content="Combat skill affects fighting and hunting" position="top">
               <div className="flex flex-col items-center bg-stone-800/30 p-1 rounded cursor-help">
                 <span className="text-base">⚔️</span>
@@ -121,16 +125,22 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
         {/* Equipment - More Compact */}
         {(gameState.equipment.weapon || gameState.equipment.armor || gameState.equipment.tool) && (
           <div className="mt-2 bg-stone-900/50 p-2 rounded-lg">
-            <h4 className="text-xs text-gray-400 mb-1 font-semibold uppercase tracking-wide">Equipment</h4>
-            <div className="flex flex-wrap gap-1 text-xs">
+            <h4 className="text-sm text-gray-400 mb-1 font-semibold uppercase tracking-wide">Equipment</h4>
+            <div className="flex flex-wrap gap-1 text-sm">
               {gameState.equipment.weapon && (
-                <span className="bg-stone-800/30 px-2 py-0.5 rounded text-gray-300">⚔️ {gameState.equipment.weapon}</span>
+                <Tooltip content={EQUIPMENT_TOOLTIPS[gameState.equipment.weapon] || gameState.equipment.weapon} position="top">
+                  <span className="bg-stone-800/30 px-2 py-0.5 rounded text-gray-300 cursor-help">⚔️ {gameState.equipment.weapon}</span>
+                </Tooltip>
               )}
               {gameState.equipment.armor && (
-                <span className="bg-stone-800/30 px-2 py-0.5 rounded text-gray-300">🛡️ {gameState.equipment.armor}</span>
+                <Tooltip content={EQUIPMENT_TOOLTIPS[gameState.equipment.armor] || gameState.equipment.armor} position="top">
+                  <span className="bg-stone-800/30 px-2 py-0.5 rounded text-gray-300 cursor-help">🛡️ {gameState.equipment.armor}</span>
+                </Tooltip>
               )}
               {gameState.equipment.tool && (
-                <span className="bg-stone-800/30 px-2 py-0.5 rounded text-gray-300">🔧 {gameState.equipment.tool}</span>
+                <Tooltip content={EQUIPMENT_TOOLTIPS[gameState.equipment.tool] || gameState.equipment.tool} position="top">
+                  <span className="bg-stone-800/30 px-2 py-0.5 rounded text-gray-300 cursor-help">🔧 {gameState.equipment.tool}</span>
+                </Tooltip>
               )}
             </div>
           </div>
@@ -158,12 +168,12 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
               <div
                 key={member.name}
                 className="bg-stone-900/50 p-2 rounded-lg border border-amber-600/20 hover:border-amber-500/40 transition-colors cursor-pointer"
-                onClick={() => onOpenInventoryForTarget?.(member)}
+                onClick={() => onOpenPartyMemberDetail?.(member)}
               >
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex-grow min-w-0">
-                    <h4 className="text-amber-200 font-bold text-xs truncate">{member.name}</h4>
-                    <p className="text-xs text-gray-400 capitalize">{member.role}</p>
+                    <h4 className="text-amber-200 font-bold text-sm truncate">{member.name}</h4>
+                    <p className="text-sm text-gray-400 capitalize">{member.role}</p>
                   </div>
                   <Tooltip content={MOOD_TOOLTIPS[member.mood]} position="top">
                     <div className="text-base cursor-help flex-shrink-0 ml-1">
@@ -177,9 +187,9 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
                   </Tooltip>
                 </div>
 
-                <div className="space-y-0.5 text-xs">
+                <div className="space-y-0.5 text-sm">
                   {/* Compact Stat Bars */}
-                  <div className="grid grid-cols-3 gap-1 text-xs">
+                  <div className="grid grid-cols-3 gap-1 text-sm">
                     <div>
                       <span className={member.health > 70 ? 'text-green-400' : member.health > 40 ? 'text-yellow-400' : 'text-red-400'}>
                         ❤️{member.health}
@@ -195,7 +205,7 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
 
                   {/* Personality */}
                   <Tooltip content={PERSONALITY_TOOLTIPS[member.personalityTrait]} position="top">
-                    <div className="bg-stone-800/50 px-1.5 py-0.5 rounded text-xs text-center cursor-help">
+                    <div className="bg-stone-800/50 px-1.5 py-0.5 rounded text-sm text-center cursor-help">
                       <span className="text-amber-300 capitalize">{member.personalityTrait}</span>
                     </div>
                   </Tooltip>
@@ -226,7 +236,7 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
         )}
       </div>
 
-      {/* Rest of component - remove duplicate sections */}
+      {/* Inventory Section with Item Usage */}
       <div className="p-3 border-b-2 border-amber-600/30">
         <div
           className="flex items-center justify-between cursor-pointer"
@@ -242,17 +252,89 @@ const CharacterSidebar: React.FC<CharacterSidebarProps> = ({
         </div>
 
         {inventoryExpanded && inventoryItems.length > 0 && (
-          <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
-            {inventoryItems.map(([itemName, quantity]) => (
-              <div key={itemName} className="flex justify-between items-center text-xs bg-stone-900/30 p-1.5 rounded">
-                <div className="flex items-center gap-1">
-                  {ITEM_ICONS[itemName] && <span>{ITEM_ICONS[itemName]}</span>}
-                  <span className="text-gray-300">{itemName}</span>
+          <div className="mt-2 space-y-1 max-h-64 overflow-y-auto">
+            {inventoryItems.map(([itemName, quantity]) => {
+              const effect = ITEM_EFFECTS[itemName];
+              const description = ITEM_DESCRIPTIONS[itemName];
+              const isUsable = effect && (effect.health_change || effect.removesCondition);
+
+              return (
+                <div key={itemName} className="bg-stone-900/30 rounded overflow-hidden">
+                  <div className="flex justify-between items-center text-sm p-1.5">
+                    <div className="flex items-center gap-1 flex-1">
+                      {ITEM_ICONS[itemName] && <span>{ITEM_ICONS[itemName]}</span>}
+                      <Tooltip content={description || 'No description available'} position="top">
+                        <span className="text-gray-300 cursor-help">{itemName}</span>
+                      </Tooltip>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-amber-300 font-bold">x{quantity}</span>
+                      {isUsable && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedItem(itemName);
+                            setShowTargetSelector(true);
+                          }}
+                          className="px-2 py-0.5 bg-green-700/50 hover:bg-green-600/70 text-green-200 rounded text-xs transition-colors"
+                        >
+                          Use
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Target Selector */}
+                  {showTargetSelector && selectedItem === itemName && (
+                    <div className="bg-stone-800/50 p-2 border-t border-amber-600/20">
+                      <p className="text-xs text-amber-200 mb-2">Use on:</p>
+                      <div className="space-y-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUseItem?.(itemName);
+                            setShowTargetSelector(false);
+                            setSelectedItem(null);
+                          }}
+                          className="w-full px-2 py-1 bg-blue-700/50 hover:bg-blue-600/70 text-blue-200 rounded text-xs transition-colors text-left"
+                        >
+                          ✨ {player.name} (You)
+                        </button>
+                        {gameState.party.map(member => (
+                          <button
+                            key={member.name}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onUseItem?.(itemName, member);
+                              setShowTargetSelector(false);
+                              setSelectedItem(null);
+                            }}
+                            className="w-full px-2 py-1 bg-purple-700/50 hover:bg-purple-600/70 text-purple-200 rounded text-xs transition-colors text-left"
+                          >
+                            👤 {member.name} ({member.role})
+                          </button>
+                        ))}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowTargetSelector(false);
+                            setSelectedItem(null);
+                          }}
+                          className="w-full px-2 py-1 bg-gray-700/50 hover:bg-gray-600/70 text-gray-300 rounded text-xs transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <span className="text-amber-300 font-bold">x{quantity}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
+        )}
+
+        {inventoryExpanded && inventoryItems.length === 0 && (
+          <p className="text-sm text-gray-500 italic mt-2 text-center">No items in inventory</p>
         )}
       </div>
     </div>
